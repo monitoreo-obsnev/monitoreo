@@ -780,6 +780,12 @@ var MonitorEO = (function () {
 		aerosols: function (i) { return bits(i.select('DetailedQA'), 6, 7).neq(3); }
 	};
 	var LST = {clouds: function (i) { return bits(i.select('QC_Day'), 0, 1).eq(0); }};
+	// the night LST of the same images (the entry names this product, its field product), its own QC_Night
+	var LST_NIGHT = {clouds: function (i) { return bits(i.select('QC_Night'), 0, 1).eq(0); }};
+	// ECOSTRESS LST of 70 m: its bands cloud (1 cloud) and water (1 water); LST out of 150-400 K has no value
+	var ECOSTRESS = {valid: ['LST', 400, 150],
+		clouds: function (i) { return i.select('cloud').eq(0); },
+		water: function (i) { return i.select('water').eq(0); }};
 	var SNOW = {
 		valid: ['NDSI_Snow_Cover', 100],
 		clouds: function (i) { return i.select('NDSI_Snow_Cover_Class').unmask(0).neq(250); },
@@ -812,6 +818,9 @@ var MonitorEO = (function () {
 		'MODIS/061/MYD13Q1': VI,
 		'MODIS/061/MOD11A1': LST,
 		'MODIS/061/MYD11A1': LST,
+		'MODIS/061/MOD11A1#night': LST_NIGHT,
+		'MODIS/061/MYD11A1#night': LST_NIGHT,
+		'NASA/ECOSTRESS/L2T_LSTE/V2': ECOSTRESS,
 		'MODIS/061/MOD16A2': {valid: ['ET', 32700],
 			clouds: function (i) { return modisCloudState(i.select('ET_QC')); }},
 		'MODIS/061/MCD15A3H': {
@@ -871,7 +880,7 @@ var MonitorEO = (function () {
 		var available;
 		if (entry.sensor === 'Sentinel-2') available = ['clouds', 'water', 'snow'];
 		else if (entry.sensor === 'Landsat') available = FILTERS;
-		else available = FILTERS.filter(function (f) { return (PRODUCTS[entry.col] || {})[f]; });
+		else available = FILTERS.filter(function (f) { return (PRODUCTS[productOf(entry)] || {})[f]; });
 		FILTERS.forEach(function (f) {
 			var on = quality[f];
 			if (String(on).toLowerCase() === 'auto') on = (MEASURES[f] || []).indexOf(entry.index) < 0;
@@ -914,7 +923,7 @@ var MonitorEO = (function () {
 			if (on.water && !permanent) masks.push(bits(qa, 7).eq(0));
 			if (on.aerosols) masks.push(bits(img.select('SR_QA_AEROSOL'), 6, 7).neq(3));  // level 3 = high
 		} else {
-			var product = PRODUCTS[entry.col] || {};
+			var product = PRODUCTS[productOf(entry)] || {};
 			validRanges(product).forEach(function (v) {
 				masks.push(img.select(v[0]).lte(v[1]));
 				if (v[2] !== null) masks.push(img.select(v[0]).gte(v[2]));
@@ -944,6 +953,25 @@ var MonitorEO = (function () {
 	}
 
 	// sensors.raw_collection
+	// sensors.product_of: the key of PRODUCTS of ENTRY, its field product or its collection
+	function productOf(entry) {
+		return entry.product || entry.col;
+	}
+
+	// sensors.solar_hours: the images of COL between the local solar hours HOURS (across midnight when first > last)
+	function solarHours(col, hours) {
+		var first = Number(hours[0]), last = Number(hours[1]);
+		col = col.map(function (img) {
+			var lon = ee.Number(img.geometry().centroid(1000).coordinates().get(0));
+			var h = ee.Number(ee.Date(img.get('system:time_start')).getFraction('day')).multiply(24).add(lon.divide(15));
+			return img.set('solar_hour', h.add(48).mod(24));
+		});
+		if (first > last) {
+			return col.filter(ee.Filter.or(ee.Filter.gte('solar_hour', first), ee.Filter.lt('solar_hour', last)));
+		}
+		return col.filter(ee.Filter.and(ee.Filter.gte('solar_hour', first), ee.Filter.lt('solar_hour', last)));
+	}
+
 	function rawCollection(entry, region, start, end, quality) {
 		var prop = SCENE_CLOUDS[entry.sensor];
 		var scene = quality.scene_clouds;
@@ -974,6 +1002,7 @@ var MonitorEO = (function () {
 			return col;
 		}
 		var out = sceneFilter(ee.ImageCollection(entry.col).filterBounds(region).filterDate(start, end));
+		if (entry.hours) out = solarHours(out, entry.hours);  // only the images of some hours (the night of ECOSTRESS)
 		if (GAP_FILLED[entry.col]) {  // the gap-filled images, and those of the collection after the last of them
 			var last = ee.Date(CATALOG.collections[GAP_FILLED[entry.col]].end).millis();  // as the references
 			out = sceneFilter(ee.ImageCollection(GAP_FILLED[entry.col]).filterBounds(region).filterDate(start, end))
@@ -5472,7 +5501,7 @@ var MonitorEO = (function () {
 		'dNBR': ['Severidad de incendios (dNBR)', 'Burn severity (dNBR)']
 	};
 	var WIKI_SAME = {'LE': 'ET', 'RBR': 'NBR', 'SLOPE': 'ELEVATION', 'BIOME': 'ECOREGION', 'NPP': 'GPP',
-		'TREE_COVER': 'CANOPY_HEIGHT', 'SPEI1': 'PDSI',
+		'TREE_COVER': 'CANOPY_HEIGHT', 'LST_NIGHT': 'LST', 'SPEI1': 'PDSI',
 		'SPEI3': 'PDSI', 'SPEI6': 'PDSI', 'SPEI12': 'PDSI', 'PRECIP': 'CLIMATE',
 		'TMAX': 'CLIMATE', 'TMIN': 'CLIMATE', 'TMEAN': 'CLIMATE', 'PET': 'CLIMATE', 'AET': 'CLIMATE', 'CWD': 'CLIMATE', 'SOILM': 'CLIMATE',
 		'VPD': 'CLIMATE', 'BIO01': 'BIO', 'BIO02': 'BIO', 'BIO03': 'BIO', 'BIO04': 'BIO', 'BIO05': 'BIO', 'BIO06': 'BIO',

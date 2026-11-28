@@ -198,6 +198,12 @@
    ],
    "credit": "Hansen/UMD/Google/USGS/NASA Global Forest Change v1.13 (2000-2025), licence CC BY 4.0"
   },
+  "NASA/ECOSTRESS/L2T_LSTE/V2": {
+   "references": [
+    "hook2022ecostress"
+   ],
+   "credit": "ECOSTRESS data courtesy of NASA Land Processes Distributed Active Archive Center (LP DAAC)"
+  },
   "MERIT/Hydro/v1_0_1": {
    "references": [
     "yamazaki2019"
@@ -987,6 +993,18 @@
   "hansen2013": {
    "citation": "Hansen, M. C., Potapov, P. V., Moore, R., Hancher, M., Turubanova, S. A., Tyukavina, A., Thau, D., Stehman, S. V., Goetz, S. J., Loveland, T. R., Kommareddy, A., Egorov, A., Chini, L., Justice, C. O., & Townshend, J. R. G. (2013). High-resolution global maps of 21st-century forest cover change. Science, 342(6160), 850–853.",
    "doi": "10.1126/science.1244693"
+  },
+  "hulley2022": {
+   "citation": "Hulley, G. C., Gottsche, F. M., Rivera, G., Hook, S. J., Freepartner, R. J., Martin, M. A., Cawse-Nicholson, K., & Johnson, W. R. (2022). Validation and quality assessment of the ECOSTRESS Level-2 land surface temperature and emissivity product. IEEE Transactions on Geoscience and Remote Sensing, 60, 1–23.",
+   "doi": "10.1109/TGRS.2021.3079879"
+  },
+  "fisher2020": {
+   "citation": "Fisher, J. B., Lee, B., Purdy, A. J., Halverson, G. H., Dohlen, M. B., Cawse-Nicholson, K., Wang, A., Anderson, R. G., Aragon, B., Arain, M. A., Baldocchi, D. D., Baker, J. M., Barral, H., Bernacchi, C. J., Bernhofer, C., Biraud, S. C., Bohrer, G., Brunsell, N., Cappelaere, B., et al. (2020). ECOSTRESS: NASA's next generation mission to measure evapotranspiration from the International Space Station. Water Resources Research, 56(4), e2019WR026058.",
+   "doi": "10.1029/2019WR026058"
+  },
+  "hook2022ecostress": {
+   "citation": "Hook, S., & Hulley, G. (2022). ECOSTRESS Tiled Land Surface Temperature and Emissivity Instantaneous L2 Global 70 m v002 [Data set]. NASA Land Processes Distributed Active Archive Center.",
+   "doi": "10.5067/ECOSTRESS/ECO_L2T_LSTE.002"
   },
   "marcos2023": {
    "citation": "Marcos, B., Gonçalves, J., Alcaraz-Segura, D., Cunha, M., & Honrado, J. P. (2023). Assessing the resilience of ecosystem functioning to wildfires using satellite-derived metrics of post-fire trajectories. Remote Sensing of Environment, 286, 113441.",

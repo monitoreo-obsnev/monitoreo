@@ -15,7 +15,7 @@ from monitoreo.grid import Grid
 
 def test_catalog():
 	entries = catalog.variables()
-	assert len(entries) == 121  # the 50 of catalog.json (CLre, WAVI and CLreB7 of Sentinel-2: refs 158 to 160; MSI and
+	assert len(entries) == 124  # the 50 of catalog.json (CLre, WAVI and CLreB7 of Sentinel-2: refs 158 to 160; MSI and
 	# MSAVI2 of Landsat and Sentinel-2, the NDWI and LSWI of MODIS MOD09A1 and MYD09A1, the GPP and NPP of MOD17A3HGF and
 	# MYD17A3HGF: 165 to 176; the Tasseled Cap brightness, greenness and wetness of Landsat: 185 to 187), NBR and RBR of Landsat and Sentinel-2, SCF of Landsat, the
 	# elevation and slope of the Copernicus DEM, the cloud frequency of MODIS (Terra and Aqua), Sentinel-2 and Landsat,
@@ -26,8 +26,22 @@ def test_catalog():
 	# the SCF and the SCD of Sentinel-2 (156 and 157), and the snow melt-out day (SMOD) of Landsat, MODIS (Terra and
 	# Aqua) and Sentinel-2 (161 to 164), the PDSI of TerraClimate (177), the SPEI of 1, 3, 6 and 12 months of SPEIbase
 	# (178 to 181), the burn date of MCD64A1 and FireCCI51 (182, 183), the aspect of the Copernicus DEM (184) and the
-	# canopy height of ETH and the tree cover of Hansen (188, 189: fixed layers of the structure of the canopy)
+	# canopy height of ETH and the tree cover of Hansen (188, 189: fixed layers of the structure of the canopy) and the
+	# night land surface temperature of MODIS Terra and Aqua and of ECOSTRESS (190 to 192)
 	assert len({e['ref'] for e in entries}) == len(entries)  # the refs are unique
+	# the night land surface temperature: the QA of the night of MODIS (product), the night hours of ECOSTRESS
+	from monitoreo import sensors
+	terra, eco = catalog.find('LST_NIGHT', 'Modis'), catalog.find('LST_NIGHT', 'ECOSTRESS')
+	assert (terra['col'], terra['ft'], terra['product'], terra['theme']) == (
+		'MODIS/061/MOD11A1', 'LST_Night_1km', 'MODIS/061/MOD11A1#night', 'energy')
+	assert sensors.product_of(terra) == 'MODIS/061/MOD11A1#night' and sensors.filters(terra)['clouds']
+	assert (eco['col'], eco['hours'], eco['m'], eco['unit']) == ('NASA/ECOSTRESS/L2T_LSTE/V2', [22, 4], 70, '[°C]')
+	assert sensors.filters(eco)['clouds'] and sensors.filters(eco)['water'] and not sensors.filters(eco)['snow']
+	assert catalog.find('LST', 'Modis')['ref'] == 15  # the day LST is still the first one
+	from monitoreo import report
+	facts = dict(report.item_facts('time_series', {'region': {'wdpa_id': 389011}, 'variable': 'LST_NIGHT',
+	                                               'sensor': 'ECOSTRESS', 'start': '2021-01-01', 'end': '2021-12-31'}, {}))
+	assert '22 h and 4 h of local solar time' in facts['Images']
 	# the structure of the canopy: fixed images (not collections), of the theme Vegetation
 	for index, sensor, col, band, unit, ref in (
 			('CANOPY_HEIGHT', 'ETH', 'users/nlang/ETH_GlobalCanopyHeight_2020_10m_v1', 'b1', '[m]', 'lang2023'),

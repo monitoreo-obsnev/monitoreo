@@ -189,6 +189,10 @@ def test_cite():
 	assert not {'esa_copernicus_dem', 'rizzoli2017'} & set(_ids(twi))
 	assert twi['credits'] == ['MERIT Hydro v1.0.1 © its developers (Yamazaki et al. 2019), licence CC BY-NC 4.0 or '
 	                          'ODbL 1.0']
+	# the night LST of ECOSTRESS: its algorithm, its mission and its dataset with the credit of LP DAAC
+	c = references.cite('time_series', {'variable': 'LST_NIGHT', 'sensor': 'ECOSTRESS', 'region': {'wdpa_id': 389011},
+	                                    'start': '2021-01-01', 'end': '2021-12-31'})
+	assert {'hulley2022', 'fisher2020', 'hook2022ecostress'} <= set(_ids(c)) and any('LP DAAC' in x for x in c['credits'])
 	# the structure of the canopy: Lang et al. 2023 and Hansen et al. 2013 with their licences, not the Copernicus DEM
 	for variable, sensor, ref, credit in (('CANOPY_HEIGHT', 'ETH', 'lang2023', 'Lang et al. 2023'),
 	                                      ('TREE_COVER', 'Hansen', 'hansen2013', 'Global Forest Change v1.13')):

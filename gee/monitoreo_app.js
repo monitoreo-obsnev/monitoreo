@@ -5771,6 +5771,14 @@ var CATALOG = {
      "MODIS Terra Daily NDWI"
     ]
    ],
+   "NASA/ECOSTRESS/L2T_LSTE/V2": [
+    [
+     "NASA/ECOSTRESS/L2T_LSTE/V2",
+     "2018-07-09",
+     null,
+     "ECOSTRESS Land Surface Temperature and Emissivity L2 Global 70 m V002"
+    ]
+   ],
    "NASA/OCEANDATA/MODIS-Aqua/L3SMI": [
     [
      "NASA/OCEANDATA/MODIS-Aqua/L3SMI",
@@ -12656,6 +12664,7 @@ var CATALOG = {
    "es": "Energ\u00eda y temperatura",
    "indices": [
     "LST",
+    "LST_NIGHT",
     "ALBEDO",
     "ET",
     "LE"
@@ -12745,6 +12754,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "ET",
+   "hours": null,
    "image_asset": null,
    "index": "ET",
    "large_areas": true,
@@ -12765,6 +12775,7 @@ var CATALOG = {
     "FF0000",
     "800000"
    ],
+   "product": null,
    "ref": 1,
    "scale": 0.1,
    "sea": null,
@@ -12792,6 +12803,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "LE",
+   "hours": null,
    "image_asset": null,
    "index": "LE",
    "large_areas": true,
@@ -12812,6 +12824,7 @@ var CATALOG = {
     "FF0000",
     "800000"
    ],
+   "product": null,
    "ref": 2,
    "scale": 10000,
    "sea": null,
@@ -12840,6 +12853,7 @@ var CATALOG = {
    ],
    "fk": "nd",
    "ft": "N(nir,swir1)",
+   "hours": null,
    "image_asset": null,
    "index": "LSWI",
    "large_areas": true,
@@ -12867,6 +12881,7 @@ var CATALOG = {
     "011D01",
     "011301"
    ],
+   "product": null,
    "ref": 3,
    "scale": 2.75e-05,
    "sea": null,
@@ -12895,6 +12910,7 @@ var CATALOG = {
    ],
    "fk": "nd",
    "ft": "N(B8,B11)",
+   "hours": null,
    "image_asset": null,
    "index": "LSWI",
    "large_areas": false,
@@ -12922,6 +12938,7 @@ var CATALOG = {
     "011D01",
     "011301"
    ],
+   "product": null,
    "ref": 4,
    "scale": 0.0001,
    "sea": null,
@@ -12950,6 +12967,7 @@ var CATALOG = {
    ],
    "fk": "nd",
    "ft": "N(green ,swir1)",
+   "hours": null,
    "image_asset": null,
    "index": "NDSI",
    "large_areas": true,
@@ -12972,6 +12990,7 @@ var CATALOG = {
     "#045FB4",
     "#000000"
    ],
+   "product": null,
    "ref": 5,
    "scale": 2.75e-05,
    "sea": null,
@@ -12999,6 +13018,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "NDSI_Snow_Cover",
+   "hours": null,
    "image_asset": null,
    "index": "NDSI",
    "large_areas": true,
@@ -13021,6 +13041,7 @@ var CATALOG = {
     "#045FB4",
     "#000000"
    ],
+   "product": null,
    "ref": 6,
    "scale": 1,
    "sea": null,
@@ -13048,6 +13069,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "NDSI_Snow_Cover",
+   "hours": null,
    "image_asset": null,
    "index": "NDSI",
    "large_areas": true,
@@ -13070,6 +13092,7 @@ var CATALOG = {
     "#045FB4",
     "#000000"
    ],
+   "product": null,
    "ref": 7,
    "scale": 1,
    "sea": null,
@@ -13098,6 +13121,7 @@ var CATALOG = {
    ],
    "fk": "nd",
    "ft": "N(B3, B11)",
+   "hours": null,
    "image_asset": null,
    "index": "NDSI",
    "large_areas": false,
@@ -13120,6 +13144,7 @@ var CATALOG = {
     "#045FB4",
     "#000000"
    ],
+   "product": null,
    "ref": 8,
    "scale": 0.0001,
    "sea": null,
@@ -13148,6 +13173,7 @@ var CATALOG = {
    ],
    "fk": "nd",
    "ft": "N(green,nir)",
+   "hours": null,
    "image_asset": null,
    "index": "NDWI",
    "large_areas": true,
@@ -13174,6 +13200,7 @@ var CATALOG = {
     "#DF923D",
     "#0000ff"
    ],
+   "product": null,
    "ref": 9,
    "scale": 2.75e-05,
    "sea": null,
@@ -13202,6 +13229,7 @@ var CATALOG = {
    ],
    "fk": "nd",
    "ft": "N(B3,B8)",
+   "hours": null,
    "image_asset": null,
    "index": "NDWI",
    "large_areas": false,
@@ -13228,6 +13256,7 @@ var CATALOG = {
     "#DF923D",
     "#0000ff"
    ],
+   "product": null,
    "ref": 10,
    "scale": 0.0001,
    "sea": null,
@@ -13259,6 +13288,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "((0.356 * blue) + (0.130 * red) + (0.373 * nir) + (0.085 * swir1) + (0.072 * swir2) - 0.0018)/ 1.016",
+   "hours": null,
    "image_asset": null,
    "index": "ALBEDO",
    "large_areas": true,
@@ -13295,6 +13325,7 @@ var CATALOG = {
     "D0E2FF",
     "F9F4FF"
    ],
+   "product": null,
    "ref": 11,
    "scale": 2.75e-05,
    "sea": null,
@@ -13323,6 +13354,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "(Albedo_BSA_shortwave + Albedo_WSA_shortwave)/2",
+   "hours": null,
    "image_asset": null,
    "index": "ALBEDO",
    "large_areas": true,
@@ -13359,6 +13391,7 @@ var CATALOG = {
     "D0E2FF",
     "F9F4FF"
    ],
+   "product": null,
    "ref": 12,
    "scale": 0.001,
    "sea": null,
@@ -13391,6 +13424,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "(0.2266 * B2) + (0.1236 * B3) + (0.1573 * B4) + (0.3417 * B8) + (0.1170 * B11) + (0.0338 * B12)",
+   "hours": null,
    "image_asset": null,
    "index": "ALBEDO",
    "large_areas": false,
@@ -13427,6 +13461,7 @@ var CATALOG = {
     "D0E2FF",
     "F9F4FF"
    ],
+   "product": null,
    "ref": 13,
    "scale": 0.0001,
    "sea": null,
@@ -13454,6 +13489,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "st",
+   "hours": null,
    "image_asset": null,
    "index": "LST",
    "large_areas": true,
@@ -13475,6 +13511,7 @@ var CATALOG = {
     "B2182B",
     "67001F"
    ],
+   "product": null,
    "ref": 14,
    "scale": 0.00341802,
    "sea": null,
@@ -13502,6 +13539,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "LST_day_1km",
+   "hours": null,
    "image_asset": null,
    "index": "LST",
    "large_areas": true,
@@ -13523,6 +13561,7 @@ var CATALOG = {
     "B2182B",
     "67001F"
    ],
+   "product": null,
    "ref": 15,
    "scale": 0.02,
    "sea": null,
@@ -13550,6 +13589,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "LST_day_1km",
+   "hours": null,
    "image_asset": null,
    "index": "LST",
    "large_areas": true,
@@ -13571,6 +13611,7 @@ var CATALOG = {
     "B2182B",
     "67001F"
    ],
+   "product": null,
    "ref": 16,
    "scale": 0.02,
    "sea": null,
@@ -13598,6 +13639,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "chlor_a",
+   "hours": null,
    "image_asset": null,
    "index": "Chl-a",
    "large_areas": true,
@@ -13624,6 +13666,7 @@ var CATALOG = {
     "011D01",
     "011301"
    ],
+   "product": null,
    "ref": 17,
    "scale": 1,
    "sea": true,
@@ -13651,6 +13694,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "chlor_a",
+   "hours": null,
    "image_asset": null,
    "index": "Chl-a",
    "large_areas": true,
@@ -13677,6 +13721,7 @@ var CATALOG = {
     "011D01",
     "011301"
    ],
+   "product": null,
    "ref": 18,
    "scale": 1,
    "sea": true,
@@ -13706,6 +13751,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "1.0702 - 0.5751 * (B12 - 0.023899) / 0.014371 + 1.9729 * (B4 - 0.029789) / 0.015196 - 1.1902 * (B8 - 0.025612) / 0.014664",
+   "hours": null,
    "image_asset": null,
    "index": "Chl-a",
    "large_areas": false,
@@ -13732,6 +13778,7 @@ var CATALOG = {
     "011D01",
     "011301"
    ],
+   "product": null,
    "ref": 19,
    "scale": 0.0001,
    "sea": null,
@@ -13761,6 +13808,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "2.5*(nir - red)/(nir + 6 * red - 7.5 * blue + 1)",
+   "hours": null,
    "image_asset": null,
    "index": "EVI",
    "large_areas": true,
@@ -13787,6 +13835,7 @@ var CATALOG = {
     "011D01",
     "011301"
    ],
+   "product": null,
    "ref": 20,
    "scale": 2.75e-05,
    "sea": null,
@@ -13814,6 +13863,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "EVI",
+   "hours": null,
    "image_asset": null,
    "index": "EVI",
    "large_areas": true,
@@ -13840,6 +13890,7 @@ var CATALOG = {
     "011D01",
     "011301"
    ],
+   "product": null,
    "ref": 21,
    "scale": 0.0001,
    "sea": null,
@@ -13867,6 +13918,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "EVI",
+   "hours": null,
    "image_asset": null,
    "index": "EVI",
    "large_areas": true,
@@ -13893,6 +13945,7 @@ var CATALOG = {
     "011D01",
     "011301"
    ],
+   "product": null,
    "ref": 22,
    "scale": 0.0001,
    "sea": null,
@@ -13922,6 +13975,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "2.5 * ((B8 - B4) / (B8 + 6 * B4 - 7.5 * B2 + 1))",
+   "hours": null,
    "image_asset": null,
    "index": "EVI",
    "large_areas": false,
@@ -13948,6 +14002,7 @@ var CATALOG = {
     "011D01",
     "011301"
    ],
+   "product": null,
    "ref": 23,
    "scale": 0.0001,
    "sea": null,
@@ -13976,6 +14031,7 @@ var CATALOG = {
    ],
    "fk": "nd",
    "ft": "N(nir,red)",
+   "hours": null,
    "image_asset": null,
    "index": "NDVI",
    "large_areas": true,
@@ -14002,6 +14058,7 @@ var CATALOG = {
     "011D01",
     "011301"
    ],
+   "product": null,
    "ref": 24,
    "scale": 2.75e-05,
    "sea": null,
@@ -14029,6 +14086,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "NDVI",
+   "hours": null,
    "image_asset": null,
    "index": "NDVI",
    "large_areas": true,
@@ -14055,6 +14113,7 @@ var CATALOG = {
     "011D01",
     "011301"
    ],
+   "product": null,
    "ref": 25,
    "scale": 0.0001,
    "sea": null,
@@ -14082,6 +14141,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "NDVI",
+   "hours": null,
    "image_asset": null,
    "index": "NDVI",
    "large_areas": true,
@@ -14108,6 +14168,7 @@ var CATALOG = {
     "011D01",
     "011301"
    ],
+   "product": null,
    "ref": 26,
    "scale": 0.0001,
    "sea": null,
@@ -14136,6 +14197,7 @@ var CATALOG = {
    ],
    "fk": "nd",
    "ft": "N(B8,B4)",
+   "hours": null,
    "image_asset": null,
    "index": "NDVI",
    "large_areas": false,
@@ -14162,6 +14224,7 @@ var CATALOG = {
     "011D01",
     "011301"
    ],
+   "product": null,
    "ref": 27,
    "scale": 0.0001,
    "sea": null,
@@ -14189,6 +14252,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "Optical_Depth_055",
+   "hours": null,
    "image_asset": null,
    "index": "ARSL",
    "large_areas": true,
@@ -14219,6 +14283,7 @@ var CATALOG = {
     "DCE319",
     "FDE725"
    ],
+   "product": null,
    "ref": 28,
    "scale": 0.001,
    "sea": null,
@@ -14246,6 +14311,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "NDWI",
+   "hours": null,
    "image_asset": null,
    "index": "NDWI",
    "large_areas": true,
@@ -14272,6 +14338,7 @@ var CATALOG = {
     "011D01",
     "011301"
    ],
+   "product": null,
    "ref": 29,
    "scale": "#",
    "sea": null,
@@ -14299,6 +14366,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "LST_Day_1km",
+   "hours": null,
    "image_asset": null,
    "index": "LST",
    "large_areas": true,
@@ -14320,6 +14388,7 @@ var CATALOG = {
     "B2182B",
     "67001F"
    ],
+   "product": null,
    "ref": 30,
    "scale": 0.02,
    "sea": null,
@@ -14348,6 +14417,7 @@ var CATALOG = {
    ],
    "fk": "nd",
    "ft": "N(B5,B4)",
+   "hours": null,
    "image_asset": null,
    "index": "NDCI",
    "large_areas": false,
@@ -14374,6 +14444,7 @@ var CATALOG = {
     "011D01",
     "011301"
    ],
+   "product": null,
    "ref": 31,
    "scale": 0.0001,
    "sea": null,
@@ -14401,6 +14472,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "Lai",
+   "hours": null,
    "image_asset": null,
    "index": "LAI",
    "large_areas": false,
@@ -14427,6 +14499,7 @@ var CATALOG = {
     "011D01",
     "011301"
    ],
+   "product": null,
    "ref": 32,
    "scale": 0.1,
    "sea": null,
@@ -14455,6 +14528,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "B8 / B5 - 1",
+   "hours": null,
    "image_asset": null,
    "index": "CLre",
    "large_areas": false,
@@ -14481,6 +14555,7 @@ var CATALOG = {
     "011D01",
     "011301"
    ],
+   "product": null,
    "ref": 158,
    "scale": 0.0001,
    "sea": null,
@@ -14509,6 +14584,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "1.5 * (B8 - B2) / (B8 + B2 + 0.5)",
+   "hours": null,
    "image_asset": null,
    "index": "WAVI",
    "large_areas": false,
@@ -14535,6 +14611,7 @@ var CATALOG = {
     "011D01",
     "011301"
    ],
+   "product": null,
    "ref": 159,
    "scale": 0.0001,
    "sea": null,
@@ -14563,6 +14640,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "B7 / B5 - 1",
+   "hours": null,
    "image_asset": null,
    "index": "CLreB7",
    "large_areas": false,
@@ -14589,6 +14667,7 @@ var CATALOG = {
     "011D01",
     "011301"
    ],
+   "product": null,
    "ref": 160,
    "scale": 0.0001,
    "sea": null,
@@ -14617,6 +14696,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "swir1 / nir",
+   "hours": null,
    "image_asset": null,
    "index": "MSI",
    "large_areas": true,
@@ -14644,6 +14724,7 @@ var CATALOG = {
     "CE7E45",
     "FFFFFF"
    ],
+   "product": null,
    "ref": 165,
    "scale": 2.75e-05,
    "sea": null,
@@ -14672,6 +14753,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "B11 / B8",
+   "hours": null,
    "image_asset": null,
    "index": "MSI",
    "large_areas": false,
@@ -14699,6 +14781,7 @@ var CATALOG = {
     "CE7E45",
     "FFFFFF"
    ],
+   "product": null,
    "ref": 166,
    "scale": 0.0001,
    "sea": null,
@@ -14727,6 +14810,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "(2 * nir + 1 - ((2 * nir + 1) ** 2 - 8 * (nir - red)) ** 0.5) / 2",
+   "hours": null,
    "image_asset": null,
    "index": "MSAVI2",
    "large_areas": true,
@@ -14753,6 +14837,7 @@ var CATALOG = {
     "011D01",
     "011301"
    ],
+   "product": null,
    "ref": 167,
    "scale": 2.75e-05,
    "sea": null,
@@ -14781,6 +14866,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "(2 * B8 + 1 - ((2 * B8 + 1) ** 2 - 8 * (B8 - B4)) ** 0.5) / 2",
+   "hours": null,
    "image_asset": null,
    "index": "MSAVI2",
    "large_areas": false,
@@ -14807,6 +14893,7 @@ var CATALOG = {
     "011D01",
     "011301"
    ],
+   "product": null,
    "ref": 168,
    "scale": 0.0001,
    "sea": null,
@@ -14835,6 +14922,7 @@ var CATALOG = {
    ],
    "fk": "nd",
    "ft": "N(sur_refl_b02,sur_refl_b05)",
+   "hours": null,
    "image_asset": null,
    "index": "NDWI",
    "large_areas": true,
@@ -14861,6 +14949,7 @@ var CATALOG = {
     "011D01",
     "011301"
    ],
+   "product": null,
    "ref": 169,
    "scale": 0.0001,
    "sea": null,
@@ -14889,6 +14978,7 @@ var CATALOG = {
    ],
    "fk": "nd",
    "ft": "N(sur_refl_b02,sur_refl_b05)",
+   "hours": null,
    "image_asset": null,
    "index": "NDWI",
    "large_areas": true,
@@ -14915,6 +15005,7 @@ var CATALOG = {
     "011D01",
     "011301"
    ],
+   "product": null,
    "ref": 170,
    "scale": 0.0001,
    "sea": null,
@@ -14943,6 +15034,7 @@ var CATALOG = {
    ],
    "fk": "nd",
    "ft": "N(sur_refl_b02,sur_refl_b06)",
+   "hours": null,
    "image_asset": null,
    "index": "LSWI",
    "large_areas": true,
@@ -14970,6 +15062,7 @@ var CATALOG = {
     "011D01",
     "011301"
    ],
+   "product": null,
    "ref": 171,
    "scale": 0.0001,
    "sea": null,
@@ -14998,6 +15091,7 @@ var CATALOG = {
    ],
    "fk": "nd",
    "ft": "N(sur_refl_b02,sur_refl_b06)",
+   "hours": null,
    "image_asset": null,
    "index": "LSWI",
    "large_areas": true,
@@ -15025,6 +15119,7 @@ var CATALOG = {
     "011D01",
     "011301"
    ],
+   "product": null,
    "ref": 172,
    "scale": 0.0001,
    "sea": null,
@@ -15052,6 +15147,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "Gpp",
+   "hours": null,
    "image_asset": null,
    "index": "GPP",
    "large_areas": true,
@@ -15071,6 +15167,7 @@ var CATALOG = {
     "006837",
     "004529"
    ],
+   "product": null,
    "ref": 173,
    "scale": 0.0001,
    "sea": null,
@@ -15098,6 +15195,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "Gpp",
+   "hours": null,
    "image_asset": null,
    "index": "GPP",
    "large_areas": true,
@@ -15117,6 +15215,7 @@ var CATALOG = {
     "006837",
     "004529"
    ],
+   "product": null,
    "ref": 174,
    "scale": 0.0001,
    "sea": null,
@@ -15144,6 +15243,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "Npp",
+   "hours": null,
    "image_asset": null,
    "index": "NPP",
    "large_areas": true,
@@ -15163,6 +15263,7 @@ var CATALOG = {
     "006837",
     "004529"
    ],
+   "product": null,
    "ref": 175,
    "scale": 0.0001,
    "sea": null,
@@ -15190,6 +15291,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "Npp",
+   "hours": null,
    "image_asset": null,
    "index": "NPP",
    "large_areas": true,
@@ -15209,6 +15311,7 @@ var CATALOG = {
     "006837",
     "004529"
    ],
+   "product": null,
    "ref": 176,
    "scale": 0.0001,
    "sea": null,
@@ -15241,6 +15344,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "0.2043 * blue + 0.4158 * green + 0.5524 * red + 0.5741 * nir + 0.3124 * swir1 + 0.2303 * swir2",
+   "hours": null,
    "image_asset": null,
    "index": "TCB",
    "large_areas": true,
@@ -15268,6 +15372,7 @@ var CATALOG = {
     "CE7E45",
     "FFFFFF"
    ],
+   "product": null,
    "ref": 185,
    "scale": 2.75e-05,
    "sea": null,
@@ -15300,6 +15405,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "-0.1603 * blue - 0.2819 * green - 0.4934 * red + 0.794 * nir - 0.0002 * swir1 - 0.1446 * swir2",
+   "hours": null,
    "image_asset": null,
    "index": "TCG",
    "large_areas": true,
@@ -15327,6 +15433,7 @@ var CATALOG = {
     "011D01",
     "011301"
    ],
+   "product": null,
    "ref": 186,
    "scale": 2.75e-05,
    "sea": null,
@@ -15359,6 +15466,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "0.0315 * blue + 0.2021 * green + 0.3102 * red + 0.1594 * nir - 0.6806 * swir1 - 0.6109 * swir2",
+   "hours": null,
    "image_asset": null,
    "index": "TCW",
    "large_areas": true,
@@ -15386,6 +15494,7 @@ var CATALOG = {
     "011D01",
     "011301"
    ],
+   "product": null,
    "ref": 187,
    "scale": 2.75e-05,
    "sea": null,
@@ -15414,6 +15523,7 @@ var CATALOG = {
    ],
    "fk": "nd",
    "ft": "N(nir,swir2)",
+   "hours": null,
    "image_asset": null,
    "index": "NBR",
    "large_areas": true,
@@ -15433,6 +15543,7 @@ var CATALOG = {
     "4d9221",
     "276419"
    ],
+   "product": null,
    "ref": 101,
    "scale": 2.75e-05,
    "sea": null,
@@ -15461,6 +15572,7 @@ var CATALOG = {
    ],
    "fk": "nd",
    "ft": "N(B8,B12)",
+   "hours": null,
    "image_asset": null,
    "index": "NBR",
    "large_areas": false,
@@ -15480,6 +15592,7 @@ var CATALOG = {
     "4d9221",
     "276419"
    ],
+   "product": null,
    "ref": 102,
    "scale": 0.0001,
    "sea": null,
@@ -15508,6 +15621,7 @@ var CATALOG = {
    ],
    "fk": "nd",
    "ft": "N(B8A,B12)",
+   "hours": null,
    "image_asset": null,
    "index": "RBR",
    "large_areas": false,
@@ -15527,6 +15641,7 @@ var CATALOG = {
     "4d9221",
     "276419"
    ],
+   "product": null,
    "ref": 103,
    "scale": 0.0001,
    "sea": null,
@@ -15555,6 +15670,7 @@ var CATALOG = {
    ],
    "fk": "nd",
    "ft": "N(nir,swir2)",
+   "hours": null,
    "image_asset": null,
    "index": "RBR",
    "large_areas": true,
@@ -15574,6 +15690,7 @@ var CATALOG = {
     "4d9221",
     "276419"
    ],
+   "product": null,
    "ref": 104,
    "scale": 2.75e-05,
    "sea": null,
@@ -15603,6 +15720,7 @@ var CATALOG = {
    ],
    "fk": "scf",
    "ft": "SCF(green,nir,swir1)",
+   "hours": null,
    "image_asset": null,
    "index": "SCF",
    "large_areas": true,
@@ -15622,6 +15740,7 @@ var CATALOG = {
     "08519c",
     "08306b"
    ],
+   "product": null,
    "ref": 105,
    "scale": 2.75e-05,
    "sea": null,
@@ -15649,6 +15768,7 @@ var CATALOG = {
    ],
    "fk": "static",
    "ft": "DEM",
+   "hours": null,
    "image_asset": null,
    "index": "ELEVATION",
    "large_areas": true,
@@ -15668,6 +15788,7 @@ var CATALOG = {
     "bdbdbd",
     "ffffff"
    ],
+   "product": null,
    "ref": 106,
    "scale": 1,
    "sea": null,
@@ -15695,6 +15816,7 @@ var CATALOG = {
    ],
    "fk": "static",
    "ft": "slope(DEM)",
+   "hours": null,
    "image_asset": null,
    "index": "SLOPE",
    "large_areas": true,
@@ -15714,6 +15836,7 @@ var CATALOG = {
     "bd0026",
     "800026"
    ],
+   "product": null,
    "ref": 107,
    "scale": 1,
    "sea": null,
@@ -15741,6 +15864,7 @@ var CATALOG = {
    ],
    "fk": "scf",
    "ft": "SCF(NDSI_Snow_Cover)",
+   "hours": null,
    "image_asset": null,
    "index": "SCF",
    "large_areas": true,
@@ -15760,6 +15884,7 @@ var CATALOG = {
     "08519c",
     "08306b"
    ],
+   "product": null,
    "ref": 151,
    "scale": 1,
    "sea": null,
@@ -15787,6 +15912,7 @@ var CATALOG = {
    ],
    "fk": "scf",
    "ft": "SCF(NDSI_Snow_Cover)",
+   "hours": null,
    "image_asset": null,
    "index": "SCF",
    "large_areas": true,
@@ -15806,6 +15932,7 @@ var CATALOG = {
     "08519c",
     "08306b"
    ],
+   "product": null,
    "ref": 152,
    "scale": 1,
    "sea": null,
@@ -15835,6 +15962,7 @@ var CATALOG = {
    ],
    "fk": "scf",
    "ft": "SCF(green,nir,swir1)",
+   "hours": null,
    "image_asset": null,
    "index": "SCD",
    "large_areas": true,
@@ -15854,6 +15982,7 @@ var CATALOG = {
     "08519c",
     "08306b"
    ],
+   "product": null,
    "ref": 153,
    "scale": 2.75e-05,
    "sea": null,
@@ -15881,6 +16010,7 @@ var CATALOG = {
    ],
    "fk": "scf",
    "ft": "SCF(NDSI_Snow_Cover)",
+   "hours": null,
    "image_asset": null,
    "index": "SCD",
    "large_areas": true,
@@ -15900,6 +16030,7 @@ var CATALOG = {
     "08519c",
     "08306b"
    ],
+   "product": null,
    "ref": 154,
    "scale": 1,
    "sea": null,
@@ -15927,6 +16058,7 @@ var CATALOG = {
    ],
    "fk": "scf",
    "ft": "SCF(NDSI_Snow_Cover)",
+   "hours": null,
    "image_asset": null,
    "index": "SCD",
    "large_areas": true,
@@ -15946,6 +16078,7 @@ var CATALOG = {
     "08519c",
     "08306b"
    ],
+   "product": null,
    "ref": 155,
    "scale": 1,
    "sea": null,
@@ -15975,6 +16108,7 @@ var CATALOG = {
    ],
    "fk": "scf",
    "ft": "SCF(B3,B8,B11)",
+   "hours": null,
    "image_asset": null,
    "index": "SCF",
    "large_areas": false,
@@ -15994,6 +16128,7 @@ var CATALOG = {
     "08519c",
     "08306b"
    ],
+   "product": null,
    "ref": 156,
    "scale": 0.0001,
    "sea": null,
@@ -16023,6 +16158,7 @@ var CATALOG = {
    ],
    "fk": "scf",
    "ft": "SCF(B3,B8,B11)",
+   "hours": null,
    "image_asset": null,
    "index": "SCD",
    "large_areas": false,
@@ -16042,6 +16178,7 @@ var CATALOG = {
     "08519c",
     "08306b"
    ],
+   "product": null,
    "ref": 157,
    "scale": 0.0001,
    "sea": null,
@@ -16071,6 +16208,7 @@ var CATALOG = {
    ],
    "fk": "scf",
    "ft": "SCF(green,nir,swir1)",
+   "hours": null,
    "image_asset": null,
    "index": "SMOD",
    "large_areas": true,
@@ -16090,6 +16228,7 @@ var CATALOG = {
     "253494",
     "081d58"
    ],
+   "product": null,
    "ref": 161,
    "scale": 2.75e-05,
    "sea": null,
@@ -16117,6 +16256,7 @@ var CATALOG = {
    ],
    "fk": "scf",
    "ft": "SCF(NDSI_Snow_Cover)",
+   "hours": null,
    "image_asset": null,
    "index": "SMOD",
    "large_areas": true,
@@ -16136,6 +16276,7 @@ var CATALOG = {
     "253494",
     "081d58"
    ],
+   "product": null,
    "ref": 162,
    "scale": 1,
    "sea": null,
@@ -16163,6 +16304,7 @@ var CATALOG = {
    ],
    "fk": "scf",
    "ft": "SCF(NDSI_Snow_Cover)",
+   "hours": null,
    "image_asset": null,
    "index": "SMOD",
    "large_areas": true,
@@ -16182,6 +16324,7 @@ var CATALOG = {
     "253494",
     "081d58"
    ],
+   "product": null,
    "ref": 163,
    "scale": 1,
    "sea": null,
@@ -16211,6 +16354,7 @@ var CATALOG = {
    ],
    "fk": "scf",
    "ft": "SCF(B3,B8,B11)",
+   "hours": null,
    "image_asset": null,
    "index": "SMOD",
    "large_areas": false,
@@ -16230,6 +16374,7 @@ var CATALOG = {
     "253494",
     "081d58"
    ],
+   "product": null,
    "ref": 164,
    "scale": 0.0001,
    "sea": null,
@@ -16257,6 +16402,7 @@ var CATALOG = {
    ],
    "fk": "static",
    "ft": "aspect(DEM)",
+   "hours": null,
    "image_asset": null,
    "index": "ASPECT",
    "large_areas": true,
@@ -16276,6 +16422,7 @@ var CATALOG = {
     "1a9641",
     "2c7bb6"
    ],
+   "product": null,
    "ref": 184,
    "scale": 1,
    "sea": null,
@@ -16303,6 +16450,7 @@ var CATALOG = {
    ],
    "fk": "cf",
    "ft": "CF(state_1km)",
+   "hours": null,
    "image_asset": null,
    "index": "CF",
    "large_areas": true,
@@ -16322,6 +16470,7 @@ var CATALOG = {
     "6b7682",
     "576370"
    ],
+   "product": null,
    "ref": 108,
    "scale": 1,
    "sea": null,
@@ -16349,6 +16498,7 @@ var CATALOG = {
    ],
    "fk": "cf",
    "ft": "CF(state_1km)",
+   "hours": null,
    "image_asset": null,
    "index": "CF",
    "large_areas": true,
@@ -16368,6 +16518,7 @@ var CATALOG = {
     "6b7682",
     "576370"
    ],
+   "product": null,
    "ref": 109,
    "scale": 1,
    "sea": null,
@@ -16395,6 +16546,7 @@ var CATALOG = {
    ],
    "fk": "cf",
    "ft": "CF(cs_cdf)",
+   "hours": null,
    "image_asset": null,
    "index": "CF",
    "large_areas": true,
@@ -16414,6 +16566,7 @@ var CATALOG = {
     "6b7682",
     "576370"
    ],
+   "product": null,
    "ref": 110,
    "scale": 1,
    "sea": null,
@@ -16441,6 +16594,7 @@ var CATALOG = {
    ],
    "fk": "cf",
    "ft": "CF(QA_PIXEL)",
+   "hours": null,
    "image_asset": null,
    "index": "CF",
    "large_areas": true,
@@ -16460,6 +16614,7 @@ var CATALOG = {
     "6b7682",
     "576370"
    ],
+   "product": null,
    "ref": 111,
    "scale": 1,
    "sea": null,
@@ -16487,6 +16642,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "total_precipitation_sum",
+   "hours": null,
    "image_asset": null,
    "index": "PRECIP",
    "large_areas": true,
@@ -16506,6 +16662,7 @@ var CATALOG = {
     "08519c",
     "08306b"
    ],
+   "product": null,
    "ref": 112,
    "scale": 1000,
    "sea": null,
@@ -16533,6 +16690,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "temperature_2m",
+   "hours": null,
    "image_asset": null,
    "index": "TMEAN",
    "large_areas": true,
@@ -16553,6 +16711,7 @@ var CATALOG = {
     "d73027",
     "a50026"
    ],
+   "product": null,
    "ref": 113,
    "scale": 1,
    "sea": null,
@@ -16580,6 +16739,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "temperature_2m_min",
+   "hours": null,
    "image_asset": null,
    "index": "TMIN",
    "large_areas": true,
@@ -16600,6 +16760,7 @@ var CATALOG = {
     "d73027",
     "a50026"
    ],
+   "product": null,
    "ref": 114,
    "scale": 1,
    "sea": null,
@@ -16627,6 +16788,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "temperature_2m_max",
+   "hours": null,
    "image_asset": null,
    "index": "TMAX",
    "large_areas": true,
@@ -16647,6 +16809,7 @@ var CATALOG = {
     "d73027",
     "a50026"
    ],
+   "product": null,
    "ref": 115,
    "scale": 1,
    "sea": null,
@@ -16674,6 +16837,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "pr",
+   "hours": null,
    "image_asset": null,
    "index": "PRECIP",
    "large_areas": true,
@@ -16693,6 +16857,7 @@ var CATALOG = {
     "08519c",
     "08306b"
    ],
+   "product": null,
    "ref": 116,
    "scale": 1,
    "sea": null,
@@ -16720,6 +16885,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "tmmn",
+   "hours": null,
    "image_asset": null,
    "index": "TMIN",
    "large_areas": true,
@@ -16740,6 +16906,7 @@ var CATALOG = {
     "d73027",
     "a50026"
    ],
+   "product": null,
    "ref": 117,
    "scale": 0.1,
    "sea": null,
@@ -16767,6 +16934,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "tmmx",
+   "hours": null,
    "image_asset": null,
    "index": "TMAX",
    "large_areas": true,
@@ -16787,6 +16955,7 @@ var CATALOG = {
     "d73027",
     "a50026"
    ],
+   "product": null,
    "ref": 118,
    "scale": 0.1,
    "sea": null,
@@ -16814,6 +16983,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "pet",
+   "hours": null,
    "image_asset": null,
    "index": "PET",
    "large_areas": true,
@@ -16833,6 +17003,7 @@ var CATALOG = {
     "993404",
     "662506"
    ],
+   "product": null,
    "ref": 119,
    "scale": 0.1,
    "sea": null,
@@ -16860,6 +17031,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "aet",
+   "hours": null,
    "image_asset": null,
    "index": "AET",
    "large_areas": true,
@@ -16879,6 +17051,7 @@ var CATALOG = {
     "993404",
     "662506"
    ],
+   "product": null,
    "ref": 120,
    "scale": 0.1,
    "sea": null,
@@ -16906,6 +17079,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "def",
+   "hours": null,
    "image_asset": null,
    "index": "CWD",
    "large_areas": true,
@@ -16925,6 +17099,7 @@ var CATALOG = {
     "993404",
     "662506"
    ],
+   "product": null,
    "ref": 121,
    "scale": 0.1,
    "sea": null,
@@ -16952,6 +17127,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "soil",
+   "hours": null,
    "image_asset": null,
    "index": "SOILM",
    "large_areas": true,
@@ -16971,6 +17147,7 @@ var CATALOG = {
     "01665e",
     "003c30"
    ],
+   "product": null,
    "ref": 122,
    "scale": 0.1,
    "sea": null,
@@ -16998,6 +17175,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "vpd",
+   "hours": null,
    "image_asset": null,
    "index": "VPD",
    "large_areas": true,
@@ -17017,6 +17195,7 @@ var CATALOG = {
     "993404",
     "662506"
    ],
+   "product": null,
    "ref": 123,
    "scale": 0.01,
    "sea": null,
@@ -17044,6 +17223,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "precipitation",
+   "hours": null,
    "image_asset": null,
    "index": "PRECIP",
    "large_areas": true,
@@ -17063,6 +17243,7 @@ var CATALOG = {
     "08519c",
     "08306b"
    ],
+   "product": null,
    "ref": 124,
    "scale": 1,
    "sea": null,
@@ -17090,6 +17271,7 @@ var CATALOG = {
    ],
    "fk": "static",
    "ft": "bio01",
+   "hours": null,
    "image_asset": true,
    "index": "BIO01",
    "large_areas": true,
@@ -17110,6 +17292,7 @@ var CATALOG = {
     "d73027",
     "a50026"
    ],
+   "product": null,
    "ref": 125,
    "scale": 0.1,
    "sea": null,
@@ -17137,6 +17320,7 @@ var CATALOG = {
    ],
    "fk": "static",
    "ft": "bio02",
+   "hours": null,
    "image_asset": true,
    "index": "BIO02",
    "large_areas": true,
@@ -17157,6 +17341,7 @@ var CATALOG = {
     "d73027",
     "a50026"
    ],
+   "product": null,
    "ref": 126,
    "scale": 0.1,
    "sea": null,
@@ -17184,6 +17369,7 @@ var CATALOG = {
    ],
    "fk": "static",
    "ft": "bio03",
+   "hours": null,
    "image_asset": true,
    "index": "BIO03",
    "large_areas": true,
@@ -17204,6 +17390,7 @@ var CATALOG = {
     "d73027",
     "a50026"
    ],
+   "product": null,
    "ref": 127,
    "scale": 1,
    "sea": null,
@@ -17231,6 +17418,7 @@ var CATALOG = {
    ],
    "fk": "static",
    "ft": "bio04",
+   "hours": null,
    "image_asset": true,
    "index": "BIO04",
    "large_areas": true,
@@ -17251,6 +17439,7 @@ var CATALOG = {
     "d73027",
     "a50026"
    ],
+   "product": null,
    "ref": 128,
    "scale": 0.01,
    "sea": null,
@@ -17278,6 +17467,7 @@ var CATALOG = {
    ],
    "fk": "static",
    "ft": "bio05",
+   "hours": null,
    "image_asset": true,
    "index": "BIO05",
    "large_areas": true,
@@ -17298,6 +17488,7 @@ var CATALOG = {
     "d73027",
     "a50026"
    ],
+   "product": null,
    "ref": 129,
    "scale": 0.1,
    "sea": null,
@@ -17325,6 +17516,7 @@ var CATALOG = {
    ],
    "fk": "static",
    "ft": "bio06",
+   "hours": null,
    "image_asset": true,
    "index": "BIO06",
    "large_areas": true,
@@ -17345,6 +17537,7 @@ var CATALOG = {
     "d73027",
     "a50026"
    ],
+   "product": null,
    "ref": 130,
    "scale": 0.1,
    "sea": null,
@@ -17372,6 +17565,7 @@ var CATALOG = {
    ],
    "fk": "static",
    "ft": "bio07",
+   "hours": null,
    "image_asset": true,
    "index": "BIO07",
    "large_areas": true,
@@ -17392,6 +17586,7 @@ var CATALOG = {
     "d73027",
     "a50026"
    ],
+   "product": null,
    "ref": 131,
    "scale": 0.1,
    "sea": null,
@@ -17419,6 +17614,7 @@ var CATALOG = {
    ],
    "fk": "static",
    "ft": "bio08",
+   "hours": null,
    "image_asset": true,
    "index": "BIO08",
    "large_areas": true,
@@ -17439,6 +17635,7 @@ var CATALOG = {
     "d73027",
     "a50026"
    ],
+   "product": null,
    "ref": 132,
    "scale": 0.1,
    "sea": null,
@@ -17466,6 +17663,7 @@ var CATALOG = {
    ],
    "fk": "static",
    "ft": "bio09",
+   "hours": null,
    "image_asset": true,
    "index": "BIO09",
    "large_areas": true,
@@ -17486,6 +17684,7 @@ var CATALOG = {
     "d73027",
     "a50026"
    ],
+   "product": null,
    "ref": 133,
    "scale": 0.1,
    "sea": null,
@@ -17513,6 +17712,7 @@ var CATALOG = {
    ],
    "fk": "static",
    "ft": "bio10",
+   "hours": null,
    "image_asset": true,
    "index": "BIO10",
    "large_areas": true,
@@ -17533,6 +17733,7 @@ var CATALOG = {
     "d73027",
     "a50026"
    ],
+   "product": null,
    "ref": 134,
    "scale": 0.1,
    "sea": null,
@@ -17560,6 +17761,7 @@ var CATALOG = {
    ],
    "fk": "static",
    "ft": "bio11",
+   "hours": null,
    "image_asset": true,
    "index": "BIO11",
    "large_areas": true,
@@ -17580,6 +17782,7 @@ var CATALOG = {
     "d73027",
     "a50026"
    ],
+   "product": null,
    "ref": 135,
    "scale": 0.1,
    "sea": null,
@@ -17607,6 +17810,7 @@ var CATALOG = {
    ],
    "fk": "static",
    "ft": "bio12",
+   "hours": null,
    "image_asset": true,
    "index": "BIO12",
    "large_areas": true,
@@ -17626,6 +17830,7 @@ var CATALOG = {
     "08519c",
     "08306b"
    ],
+   "product": null,
    "ref": 136,
    "scale": 1,
    "sea": null,
@@ -17653,6 +17858,7 @@ var CATALOG = {
    ],
    "fk": "static",
    "ft": "bio13",
+   "hours": null,
    "image_asset": true,
    "index": "BIO13",
    "large_areas": true,
@@ -17672,6 +17878,7 @@ var CATALOG = {
     "08519c",
     "08306b"
    ],
+   "product": null,
    "ref": 137,
    "scale": 1,
    "sea": null,
@@ -17699,6 +17906,7 @@ var CATALOG = {
    ],
    "fk": "static",
    "ft": "bio14",
+   "hours": null,
    "image_asset": true,
    "index": "BIO14",
    "large_areas": true,
@@ -17718,6 +17926,7 @@ var CATALOG = {
     "08519c",
     "08306b"
    ],
+   "product": null,
    "ref": 138,
    "scale": 1,
    "sea": null,
@@ -17745,6 +17954,7 @@ var CATALOG = {
    ],
    "fk": "static",
    "ft": "bio15",
+   "hours": null,
    "image_asset": true,
    "index": "BIO15",
    "large_areas": true,
@@ -17765,6 +17975,7 @@ var CATALOG = {
     "d73027",
     "a50026"
    ],
+   "product": null,
    "ref": 139,
    "scale": 1,
    "sea": null,
@@ -17792,6 +18003,7 @@ var CATALOG = {
    ],
    "fk": "static",
    "ft": "bio16",
+   "hours": null,
    "image_asset": true,
    "index": "BIO16",
    "large_areas": true,
@@ -17811,6 +18023,7 @@ var CATALOG = {
     "08519c",
     "08306b"
    ],
+   "product": null,
    "ref": 140,
    "scale": 1,
    "sea": null,
@@ -17838,6 +18051,7 @@ var CATALOG = {
    ],
    "fk": "static",
    "ft": "bio17",
+   "hours": null,
    "image_asset": true,
    "index": "BIO17",
    "large_areas": true,
@@ -17857,6 +18071,7 @@ var CATALOG = {
     "08519c",
     "08306b"
    ],
+   "product": null,
    "ref": 141,
    "scale": 1,
    "sea": null,
@@ -17884,6 +18099,7 @@ var CATALOG = {
    ],
    "fk": "static",
    "ft": "bio18",
+   "hours": null,
    "image_asset": true,
    "index": "BIO18",
    "large_areas": true,
@@ -17903,6 +18119,7 @@ var CATALOG = {
     "08519c",
     "08306b"
    ],
+   "product": null,
    "ref": 142,
    "scale": 1,
    "sea": null,
@@ -17930,6 +18147,7 @@ var CATALOG = {
    ],
    "fk": "static",
    "ft": "bio19",
+   "hours": null,
    "image_asset": true,
    "index": "BIO19",
    "large_areas": true,
@@ -17949,6 +18167,7 @@ var CATALOG = {
     "08519c",
     "08306b"
    ],
+   "product": null,
    "ref": 143,
    "scale": 1,
    "sea": null,
@@ -17976,6 +18195,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "pdsi",
+   "hours": null,
    "image_asset": null,
    "index": "PDSI",
    "large_areas": true,
@@ -17995,6 +18215,7 @@ var CATALOG = {
     "35978f",
     "01665e"
    ],
+   "product": null,
    "ref": 177,
    "scale": 0.01,
    "sea": null,
@@ -18022,6 +18243,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "SPEI_01_month",
+   "hours": null,
    "image_asset": null,
    "index": "SPEI1",
    "large_areas": true,
@@ -18041,6 +18263,7 @@ var CATALOG = {
     "35978f",
     "01665e"
    ],
+   "product": null,
    "ref": 178,
    "scale": 1,
    "sea": null,
@@ -18068,6 +18291,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "SPEI_03_month",
+   "hours": null,
    "image_asset": null,
    "index": "SPEI3",
    "large_areas": true,
@@ -18087,6 +18311,7 @@ var CATALOG = {
     "35978f",
     "01665e"
    ],
+   "product": null,
    "ref": 179,
    "scale": 1,
    "sea": null,
@@ -18114,6 +18339,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "SPEI_06_month",
+   "hours": null,
    "image_asset": null,
    "index": "SPEI6",
    "large_areas": true,
@@ -18133,6 +18359,7 @@ var CATALOG = {
     "35978f",
     "01665e"
    ],
+   "product": null,
    "ref": 180,
    "scale": 1,
    "sea": null,
@@ -18160,6 +18387,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "SPEI_12_month",
+   "hours": null,
    "image_asset": null,
    "index": "SPEI12",
    "large_areas": true,
@@ -18179,6 +18407,7 @@ var CATALOG = {
     "35978f",
     "01665e"
    ],
+   "product": null,
    "ref": 181,
    "scale": 1,
    "sea": null,
@@ -18206,6 +18435,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "BurnDate",
+   "hours": null,
    "image_asset": null,
    "index": "BURNDATE",
    "large_areas": true,
@@ -18225,6 +18455,7 @@ var CATALOG = {
     "800026",
     "4d0013"
    ],
+   "product": null,
    "ref": 182,
    "scale": 1,
    "sea": null,
@@ -18252,6 +18483,7 @@ var CATALOG = {
    },
    "fk": "expr",
    "ft": "BurnDate",
+   "hours": null,
    "image_asset": null,
    "index": "BURNDATE",
    "large_areas": true,
@@ -18271,6 +18503,7 @@ var CATALOG = {
     "800026",
     "4d0013"
    ],
+   "product": null,
    "ref": 183,
    "scale": 1,
    "sea": null,
@@ -18299,6 +18532,7 @@ var CATALOG = {
    ],
    "fk": "nd",
    "ft": "N(B8,B12)",
+   "hours": null,
    "image_asset": null,
    "index": "RdNBR",
    "large_areas": false,
@@ -18318,6 +18552,7 @@ var CATALOG = {
     "4d9221",
     "276419"
    ],
+   "product": null,
    "ref": 144,
    "scale": 0.0001,
    "sea": null,
@@ -18346,6 +18581,7 @@ var CATALOG = {
    ],
    "fk": "nd",
    "ft": "N(nir,swir2)",
+   "hours": null,
    "image_asset": null,
    "index": "RdNBR",
    "large_areas": true,
@@ -18365,6 +18601,7 @@ var CATALOG = {
     "4d9221",
     "276419"
    ],
+   "product": null,
    "ref": 145,
    "scale": 2.75e-05,
    "sea": null,
@@ -18393,6 +18630,7 @@ var CATALOG = {
    ],
    "fk": "nd",
    "ft": "N(sur_refl_b02,sur_refl_b07)",
+   "hours": null,
    "image_asset": null,
    "index": "RdNBR",
    "large_areas": true,
@@ -18412,6 +18650,7 @@ var CATALOG = {
     "4d9221",
     "276419"
    ],
+   "product": null,
    "ref": 146,
    "scale": 0.0001,
    "sea": null,
@@ -18440,6 +18679,7 @@ var CATALOG = {
    ],
    "fk": "nd",
    "ft": "N(sur_refl_b02,sur_refl_b07)",
+   "hours": null,
    "image_asset": null,
    "index": "RdNBR",
    "large_areas": true,
@@ -18459,6 +18699,7 @@ var CATALOG = {
     "4d9221",
     "276419"
    ],
+   "product": null,
    "ref": 147,
    "scale": 0.0001,
    "sea": null,
@@ -18487,6 +18728,7 @@ var CATALOG = {
    ],
    "fk": "twi",
    "ft": "TWI(elv,upa)",
+   "hours": null,
    "image_asset": true,
    "index": "TWI",
    "large_areas": true,
@@ -18506,6 +18748,7 @@ var CATALOG = {
     "01665e",
     "003c30"
    ],
+   "product": null,
    "ref": 148,
    "scale": 1,
    "sea": null,
@@ -18533,6 +18776,7 @@ var CATALOG = {
    ],
    "fk": "static",
    "ft": "ECO_ID",
+   "hours": null,
    "image_asset": null,
    "index": "ECOREGION",
    "large_areas": true,
@@ -18542,6 +18786,7 @@ var CATALOG = {
    "minp": null,
    "offset": 0,
    "pm": null,
+   "product": null,
    "ref": 149,
    "scale": 1,
    "sea": null,
@@ -18569,6 +18814,7 @@ var CATALOG = {
    ],
    "fk": "static",
    "ft": "BIOME_NUM",
+   "hours": null,
    "image_asset": null,
    "index": "BIOME",
    "large_areas": true,
@@ -18578,6 +18824,7 @@ var CATALOG = {
    "minp": null,
    "offset": 0,
    "pm": null,
+   "product": null,
    "ref": 150,
    "scale": 1,
    "sea": null,
@@ -18605,6 +18852,7 @@ var CATALOG = {
    ],
    "fk": "static",
    "ft": "b1",
+   "hours": null,
    "image_asset": true,
    "index": "CANOPY_HEIGHT",
    "large_areas": true,
@@ -18624,6 +18872,7 @@ var CATALOG = {
     "006837",
     "004529"
    ],
+   "product": null,
    "ref": 188,
    "scale": 1,
    "sea": null,
@@ -18651,6 +18900,7 @@ var CATALOG = {
    ],
    "fk": "static",
    "ft": "treecover2000",
+   "hours": null,
    "image_asset": true,
    "index": "TREE_COVER",
    "large_areas": true,
@@ -18670,6 +18920,7 @@ var CATALOG = {
     "006837",
     "004529"
    ],
+   "product": null,
    "ref": 189,
    "scale": 1,
    "sea": null,
@@ -18684,6 +18935,159 @@ var CATALOG = {
    "unit": "[%]",
    "vname": "Cobertura arb\u00f3rea",
    "vname_en": "Tree cover"
+  },
+  {
+   "axis": null,
+   "band": null,
+   "circular": null,
+   "classes": null,
+   "col": "MODIS/061/MOD11A1",
+   "dr": "2000/02/24-now",
+   "fb": {
+    "LST_Night_1km": "LST_Night_1km"
+   },
+   "fk": "expr",
+   "ft": "LST_Night_1km",
+   "hours": null,
+   "image_asset": null,
+   "index": "LST_NIGHT",
+   "large_areas": true,
+   "m": 1000,
+   "maxp": 90,
+   "metric": null,
+   "minp": -90,
+   "offset": -273.15,
+   "pm": [
+    "053061",
+    "2166AC",
+    "4393C3",
+    "92C5DE",
+    "D1E5F0",
+    "F7F7F7",
+    "FDDBC7",
+    "F4A582",
+    "D6604D",
+    "B2182B",
+    "67001F"
+   ],
+   "product": "MODIS/061/MOD11A1#night",
+   "ref": 190,
+   "scale": 0.02,
+   "sea": null,
+   "sensor": "Modis",
+   "static": null,
+   "terrain": null,
+   "theme": "energy",
+   "tr": "daily",
+   "two_periods": null,
+   "type": "Calor Sensible",
+   "type_en": "Sensible Heat",
+   "unit": "[\u00b0C]",
+   "vname": "Temperatura superficial nocturna",
+   "vname_en": "Night land surface temperature"
+  },
+  {
+   "axis": null,
+   "band": null,
+   "circular": null,
+   "classes": null,
+   "col": "MODIS/061/MYD11A1",
+   "dr": "2002/07/04-now",
+   "fb": {
+    "LST_Night_1km": "LST_Night_1km"
+   },
+   "fk": "expr",
+   "ft": "LST_Night_1km",
+   "hours": null,
+   "image_asset": null,
+   "index": "LST_NIGHT",
+   "large_areas": true,
+   "m": 1000,
+   "maxp": 90,
+   "metric": null,
+   "minp": -90,
+   "offset": -273.15,
+   "pm": [
+    "053061",
+    "2166AC",
+    "4393C3",
+    "92C5DE",
+    "D1E5F0",
+    "F7F7F7",
+    "FDDBC7",
+    "F4A582",
+    "D6604D",
+    "B2182B",
+    "67001F"
+   ],
+   "product": "MODIS/061/MYD11A1#night",
+   "ref": 191,
+   "scale": 0.02,
+   "sea": null,
+   "sensor": "Modis",
+   "static": null,
+   "terrain": null,
+   "theme": "energy",
+   "tr": "daily",
+   "two_periods": null,
+   "type": "Calor Sensible",
+   "type_en": "Sensible Heat",
+   "unit": "[\u00b0C]",
+   "vname": "Temperatura superficial nocturna",
+   "vname_en": "Night land surface temperature"
+  },
+  {
+   "axis": null,
+   "band": null,
+   "circular": null,
+   "classes": null,
+   "col": "NASA/ECOSTRESS/L2T_LSTE/V2",
+   "dr": "2018/07/09-now",
+   "fb": {
+    "LST": "LST"
+   },
+   "fk": "expr",
+   "ft": "LST",
+   "hours": [
+    22,
+    4
+   ],
+   "image_asset": null,
+   "index": "LST_NIGHT",
+   "large_areas": false,
+   "m": 70,
+   "maxp": 90,
+   "metric": null,
+   "minp": -90,
+   "offset": -273.15,
+   "pm": [
+    "053061",
+    "2166AC",
+    "4393C3",
+    "92C5DE",
+    "D1E5F0",
+    "F7F7F7",
+    "FDDBC7",
+    "F4A582",
+    "D6604D",
+    "B2182B",
+    "67001F"
+   ],
+   "product": null,
+   "ref": 192,
+   "scale": 1,
+   "sea": null,
+   "sensor": "ECOSTRESS",
+   "static": null,
+   "terrain": null,
+   "theme": "energy",
+   "tr": "irregular",
+   "two_periods": null,
+   "type": "Calor Sensible",
+   "type_en": "Sensible Heat",
+   "unit": "[\u00b0C]",
+   "vname": "Temperatura superficial nocturna",
+   "vname_en": "Night land surface temperature"
   }
  ]
 };
@@ -19470,6 +19874,12 @@ var MonitorEO = (function () {
 		aerosols: function (i) { return bits(i.select('DetailedQA'), 6, 7).neq(3); }
 	};
 	var LST = {clouds: function (i) { return bits(i.select('QC_Day'), 0, 1).eq(0); }};
+	// the night LST of the same images (the entry names this product, its field product), its own QC_Night
+	var LST_NIGHT = {clouds: function (i) { return bits(i.select('QC_Night'), 0, 1).eq(0); }};
+	// ECOSTRESS LST of 70 m: its bands cloud (1 cloud) and water (1 water); LST out of 150-400 K has no value
+	var ECOSTRESS = {valid: ['LST', 400, 150],
+		clouds: function (i) { return i.select('cloud').eq(0); },
+		water: function (i) { return i.select('water').eq(0); }};
 	var SNOW = {
 		valid: ['NDSI_Snow_Cover', 100],
 		clouds: function (i) { return i.select('NDSI_Snow_Cover_Class').unmask(0).neq(250); },
@@ -19502,6 +19912,9 @@ var MonitorEO = (function () {
 		'MODIS/061/MYD13Q1': VI,
 		'MODIS/061/MOD11A1': LST,
 		'MODIS/061/MYD11A1': LST,
+		'MODIS/061/MOD11A1#night': LST_NIGHT,
+		'MODIS/061/MYD11A1#night': LST_NIGHT,
+		'NASA/ECOSTRESS/L2T_LSTE/V2': ECOSTRESS,
 		'MODIS/061/MOD16A2': {valid: ['ET', 32700],
 			clouds: function (i) { return modisCloudState(i.select('ET_QC')); }},
 		'MODIS/061/MCD15A3H': {
@@ -19561,7 +19974,7 @@ var MonitorEO = (function () {
 		var available;
 		if (entry.sensor === 'Sentinel-2') available = ['clouds', 'water', 'snow'];
 		else if (entry.sensor === 'Landsat') available = FILTERS;
-		else available = FILTERS.filter(function (f) { return (PRODUCTS[entry.col] || {})[f]; });
+		else available = FILTERS.filter(function (f) { return (PRODUCTS[productOf(entry)] || {})[f]; });
 		FILTERS.forEach(function (f) {
 			var on = quality[f];
 			if (String(on).toLowerCase() === 'auto') on = (MEASURES[f] || []).indexOf(entry.index) < 0;
@@ -19604,7 +20017,7 @@ var MonitorEO = (function () {
 			if (on.water && !permanent) masks.push(bits(qa, 7).eq(0));
 			if (on.aerosols) masks.push(bits(img.select('SR_QA_AEROSOL'), 6, 7).neq(3));  // level 3 = high
 		} else {
-			var product = PRODUCTS[entry.col] || {};
+			var product = PRODUCTS[productOf(entry)] || {};
 			validRanges(product).forEach(function (v) {
 				masks.push(img.select(v[0]).lte(v[1]));
 				if (v[2] !== null) masks.push(img.select(v[0]).gte(v[2]));
@@ -19634,6 +20047,25 @@ var MonitorEO = (function () {
 	}
 
 	// sensors.raw_collection
+	// sensors.product_of: the key of PRODUCTS of ENTRY, its field product or its collection
+	function productOf(entry) {
+		return entry.product || entry.col;
+	}
+
+	// sensors.solar_hours: the images of COL between the local solar hours HOURS (across midnight when first > last)
+	function solarHours(col, hours) {
+		var first = Number(hours[0]), last = Number(hours[1]);
+		col = col.map(function (img) {
+			var lon = ee.Number(img.geometry().centroid(1000).coordinates().get(0));
+			var h = ee.Number(ee.Date(img.get('system:time_start')).getFraction('day')).multiply(24).add(lon.divide(15));
+			return img.set('solar_hour', h.add(48).mod(24));
+		});
+		if (first > last) {
+			return col.filter(ee.Filter.or(ee.Filter.gte('solar_hour', first), ee.Filter.lt('solar_hour', last)));
+		}
+		return col.filter(ee.Filter.and(ee.Filter.gte('solar_hour', first), ee.Filter.lt('solar_hour', last)));
+	}
+
 	function rawCollection(entry, region, start, end, quality) {
 		var prop = SCENE_CLOUDS[entry.sensor];
 		var scene = quality.scene_clouds;
@@ -19664,6 +20096,7 @@ var MonitorEO = (function () {
 			return col;
 		}
 		var out = sceneFilter(ee.ImageCollection(entry.col).filterBounds(region).filterDate(start, end));
+		if (entry.hours) out = solarHours(out, entry.hours);  // only the images of some hours (the night of ECOSTRESS)
 		if (GAP_FILLED[entry.col]) {  // the gap-filled images, and those of the collection after the last of them
 			var last = ee.Date(CATALOG.collections[GAP_FILLED[entry.col]].end).millis();  // as the references
 			out = sceneFilter(ee.ImageCollection(GAP_FILLED[entry.col]).filterBounds(region).filterDate(start, end))
@@ -24162,7 +24595,7 @@ var MonitorEO = (function () {
 		'dNBR': ['Severidad de incendios (dNBR)', 'Burn severity (dNBR)']
 	};
 	var WIKI_SAME = {'LE': 'ET', 'RBR': 'NBR', 'SLOPE': 'ELEVATION', 'BIOME': 'ECOREGION', 'NPP': 'GPP',
-		'TREE_COVER': 'CANOPY_HEIGHT', 'SPEI1': 'PDSI',
+		'TREE_COVER': 'CANOPY_HEIGHT', 'LST_NIGHT': 'LST', 'SPEI1': 'PDSI',
 		'SPEI3': 'PDSI', 'SPEI6': 'PDSI', 'SPEI12': 'PDSI', 'PRECIP': 'CLIMATE',
 		'TMAX': 'CLIMATE', 'TMIN': 'CLIMATE', 'TMEAN': 'CLIMATE', 'PET': 'CLIMATE', 'AET': 'CLIMATE', 'CWD': 'CLIMATE', 'SOILM': 'CLIMATE',
 		'VPD': 'CLIMATE', 'BIO01': 'BIO', 'BIO02': 'BIO', 'BIO03': 'BIO', 'BIO04': 'BIO', 'BIO05': 'BIO', 'BIO06': 'BIO',

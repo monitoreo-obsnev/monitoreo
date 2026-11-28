@@ -665,6 +665,8 @@ def describe_variable(variable_name, sensor=None, collection=None, ref=None, lan
 		out['datasets'] = references.datasets(e['col'])
 	out['measures'] = [f for f, idx in sensors.MEASURES.items() if e['index'] in idx]
 	out['notes'] = e.get('notes', {})
+	if e.get('hours'):  # only the images of these local solar hours (the night of ECOSTRESS: sensors.solar_hours)
+		out['hours'] = list(e['hours'])
 	if e.get('metric'):
 		out['metric'] = e['metric']  # its only metric (SCF: the mean)
 	if sensors.fixed_filters(e) is not None:

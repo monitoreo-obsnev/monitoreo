@@ -598,10 +598,41 @@ EXTRA.update({
 		                'metrics and pixel filters do not apply. Licence CC BY 4.0.'}}),
 })
 
+# The land surface temperature of the night: that of MODIS Terra and Aqua (their band LST_Night_1km, with its own QA,
+# QC_Night: the field product names its filters in sensors.PRODUCTS) and that of ECOSTRESS (Hook & Hulley 2022), 70 m,
+# from the International Space Station, which passes at any hour: only its images between 22 h and 4 h of local solar
+# time (field hours), night all the year in the mid latitudes; few of its images are of the day, too few for series
+NIGHT_LST_F = ' of the night'
+NIGHT_LST = {'index': 'LST_NIGHT', 'vname': 'Temperatura superficial nocturna', 'vname_en': 'Night land surface temperature',
+             'vname_fr': 'Night land surface temperature', 'vname_de': 'Night land surface temperature'}
+EXTRA.update({
+	190: (15, dict(NIGHT_LST, ft='LST_Night_1km', f='LST_Night_1km', QA='QC_Night',
+	               product='MODIS/061/MOD11A1#night', notes={
+		'ft': 'Land surface temperature of the night of MODIS Terra (MOD11A1 v6.1, band LST_Night_1km, about 22:30 '
+		      'local time), 1 km, in °C; only the pixels of good quality (QC_Night bits 0-1 = 0). Cold air pools in '
+		      'valleys and hollows at night: the night LST shows the inversions and the cold refuges.'})),
+	191: (16, dict(NIGHT_LST, ft='LST_Night_1km', f='LST_Night_1km', QA='QC_Night',
+	               product='MODIS/061/MYD11A1#night', notes={
+		'ft': 'Land surface temperature of the night of MODIS Aqua (MYD11A1 v6.1, band LST_Night_1km, about 1:30 '
+		      'local time), 1 km, in °C; only the pixels of good quality (QC_Night bits 0-1 = 0).'})),
+	192: (15, dict(NIGHT_LST, sensor='ECOSTRESS', col='NASA/ECOSTRESS/L2T_LSTE/V2', m=70, tr='irregular',
+	               dr='2018/07/09-now', ds='7/9/18', ft='LST', f='LST (K) - 273.15', QA='cloud, water', scale=1,
+	               offset=-273.15, hours=[22, 4], large_areas=False, pg='#3f007d',
+	               references=['hulley2022', 'fisher2020'], notes={
+		'ft': 'Land surface temperature of ECOSTRESS (ECO_L2T_LSTE v002, Hook & Hulley 2022), 70 m, in °C, from the '
+		      'International Space Station, whose orbit passes over a place at a different hour each time: only '
+		      'the images between 22 h and 4 h of local solar time (the hour of the image plus the longitude of the '
+		      'centre of its tile / 15), night all the year in the mid latitudes, so that the values of different '
+		      'hours are not mixed; the images of the day are few (in Sierra Nevada, 2 to 8 a year in 2018-2025). '
+		      'Its pixels: without clouds (band cloud) nor water (band water), and LST between 150 and 400 K. '
+		      'Irregular revisit: a few nights a month; use monthly or annual steps. Cold air pools in valleys and '
+		      'hollows at night: the night LST shows the inversions and the cold refuges at 70 m.'})),
+})
+
 TEMPLATES = {'NBR': NBR, 'RBR': dict(NBR, **RBR), 'RdNBR': dict(NBR, **RDNBR), 'SCF': SCF, 'SCD': SCD, 'SMOD': SMOD, 'ELEVATION': DEM, 'SLOPE': DEM, 'ASPECT': ASPECT, 'CF': CF,
              'ERA5L': ERA5L, 'TERRACLIMATE': TERRACLIMATE, 'CHIRPS': CHIRPS, 'WORLDCLIM': WORLDCLIM,
              'MERIT_HYDRO': MERIT_HYDRO, 'RESOLVE': RESOLVE, 'SPEIBASE': SPEIBASE, 'BURNDATE': BURNDATE,
-             'CANOPY': CANOPY}  # fields of EXTRA
+             'CANOPY': CANOPY, 'LST_NIGHT': {}}  # fields of EXTRA
 
 # The units of the catalog (as shown) in UDUNITS (the units of the CF conventions, read by cf-units, xarray, R units),
 # for the files: '1' is dimensionless. ET is a total of 8 days (8 kg m-2 per 8 days = 1 kg m-2 per day).
@@ -717,7 +748,7 @@ THEMES = [
 	{'key': 'snow', 'en': 'Snow', 'es': 'Nieve', 'indices': ['NDSI', 'SCF', 'SCD', 'SMOD']},
 	{'key': 'fire', 'en': 'Fire', 'es': 'Incendios', 'indices': ['NBR', 'RBR', 'RdNBR', 'BURNDATE'], 'analyses': ['burn_severity']},
 	{'key': 'energy', 'en': 'Energy and temperature', 'es': 'Energía y temperatura',
-	 'indices': ['LST', 'ALBEDO', 'ET', 'LE']},
+	 'indices': ['LST', 'LST_NIGHT', 'ALBEDO', 'ET', 'LE']},
 	{'key': 'atmosphere', 'en': 'Atmosphere', 'es': 'Atmósfera', 'indices': ['ARSL', 'CF']},
 	{'key': 'climate', 'en': 'Climate', 'es': 'Clima',
 	 'indices': ['PRECIP', 'TMEAN', 'TMIN', 'TMAX', 'PET', 'AET', 'CWD', 'SOILM', 'VPD', 'PDSI', 'SPEI1', 'SPEI3', 'SPEI6',

@@ -198,7 +198,7 @@ HELP = {
 		'chlorophyll), <b>Snow</b> (NDSI, snow cover frequency, snow cover days), <b>Fire</b> (NBR, the burn date '
 		'BURNDATE, and the burn severity of a fire: dNBR, RBR or RdNBR), '
 		'<b>Energy and temperature</b> '
-		'(land surface temperature, albedo, evapotranspiration), <b>Atmosphere</b> (aerosols, cloud frequency), '
+		'(land surface temperature of the day and of the night, albedo, evapotranspiration), <b>Atmosphere</b> (aerosols, cloud frequency), '
 		'<b>Climate</b> (precipitation, temperature, water balance, drought indices PDSI and SPEI, WorldClim), '
 		'<b>Terrain</b> (elevation, slope, aspect, topographic wetness index) and <b>Ecosystems</b> (the ecoregions and biomes of RESOLVE, categorical layers of '
 		'classes). '
