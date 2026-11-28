@@ -2973,3 +2973,49 @@ def test_an_old_saved_context_gets_the_new_default(tmp_path, monkeypatch):
 	assert 'context' not in json.loads((tmp_path / 'assistant.json').read_text())
 	(tmp_path / 'assistant.json').write_text(json.dumps({'context': 65536}))
 	assert assistant.load_settings()['context'] == 65536
+
+
+def test_the_big_models_read_the_recipes_whole(monkeypatch):
+	# a recipe found by the tool manual reaches a big model of the cloud whole (all its steps, past the limit of the
+	# sections and of the advice tools); a small model of Ollama gets its sections and a note to give its link
+	from monitoreo import manual
+	name = 'recipe-everest-teide-fire-2023'
+	whole = manual.recipe(name)
+	assert whole and len(whole['text']) > assistant.BIG_ADVICE // 2 and whole['url'].endswith('/SKILL.md')
+	assert '## Steps' in whole['text'] and not whole['text'].startswith('---')
+	assert manual.recipe('Conceptos') is None and manual.recipe('recipe-none') is None
+	parts = [{'page': 'Recipe x', 'name': name, 'title': 'Question', 'url': 'u#q', 'lang': 'en', 'text': 'part 1'},
+	         {'page': 'Conceptos', 'name': 'Conceptos', 'title': 'NDVI', 'url': 'w', 'lang': 'es', 'text': 'NDVI'},
+	         {'page': 'Recipe x', 'name': name, 'title': 'Steps', 'url': 'u#s', 'lang': 'en', 'text': 'part 2'}]
+	out = assistant._whole_recipes(parts)
+	assert [s['name'] for s in out] == [name, 'Conceptos'] and out[0]['text'] == whole['text']
+	monkeypatch.setattr(assistant, '_search_manual', lambda *a, **k: [dict(s) for s in parts])
+	a = FakeAssistant({**assistant.DEFAULTS, 'provider': 'monitoreo'})
+	a.tools = assistant.model_tools(TOOLS) + [assistant.MANUAL_TOOL]
+
+	def run():
+		asyncio.run(_drain(a.run_tool({'name': 'manual', 'arguments': {'question': 'How was the Teide fire studied?'}})))
+		return a.messages[-1]['content']
+
+	text = run()
+	assert whole['text'] in text and len(text) > assistant.BIG_ADVICE // 2 and 'give the user its link' not in text
+	a.settings['provider'] = 'ollama'
+	text = run()
+	assert 'part 1' in text and whole['text'] not in text and 'give the user its link' in text
+	assert len(text) <= assistant.MAX_ADVICE and text.startswith(assistant.RECIPE_LINK)
+	# at most BIG_RECIPES whole: a third recipe keeps its sections; a recipe that cannot be read, too
+	other = [{'page': 'R', 'name': 'recipe-everest-ordesa-avalanche-1996', 'title': 'Q', 'url': 'o', 'text': 'o1'},
+	         {'page': 'R', 'name': 'recipe-everest-guadarrama-fire-2019', 'title': 'Q', 'url': 'g', 'text': 'g1'},
+	         {'page': 'R', 'name': 'recipe-none', 'title': 'Q', 'url': 'n', 'text': 'n1'}]
+	out = assistant._whole_recipes(parts + other)
+	assert [s['text'] for s in out][1:] == ['NDVI', manual.recipe(other[0]['name'])['text'], 'g1', 'n1']
+	# the cloud failed and Ollama answers the next step: the whole recipe given before is cut for it, with the note
+	big = [{'role': 'tool', 'tool_name': 'manual', 'content': whole['text']},
+	       {'role': 'tool', 'tool_name': 'read_document', 'content': whole['text']}]
+	small = assistant._small_manual(big)
+	assert len(small[0]['content']) <= assistant.MAX_ADVICE and small[0]['content'].startswith(assistant.RECIPE_LINK)
+	assert small[1] == big[1] and big[0]['content'] == whole['text']
+
+
+async def _drain(gen):
+	return [e async for e in gen]
