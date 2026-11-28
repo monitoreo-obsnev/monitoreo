@@ -1,6 +1,6 @@
 ---
 name: everest-c14-ungulados-pasto-nieve-calor
-description: Mountain ungulates (Iberian ibex, Pyrenean and Cantabrian chamois) and their pastures in four Spanish national parks (Sierra Nevada, Picos de Europa, Ordesa y Monte Perdido, Aigüestortes). Yearly green-up calendar (MODIS MCD12Q2 by its ID), snow melt-out day and snow cover days (MOD10A1), July-August land surface temperature (MOD11A1, Terra) and MODIS NDVI of the treeless pastures above 1,800 m, 2001-2025, with Hamed-Rao trends by elevation band, standardized spring anomalies, a period comparison and correlations with ibex recruitment from open census data (GBIF). Use it to repeat this case or to build a yearly «good or bad pasture year» satellite indicator for any mountain herbivore. Partial results, no open chamois data; only the Iberian ibex of Sierra Nevada was tested.
+description: Mountain ungulates (Iberian ibex, Pyrenean and Cantabrian chamois) and their pastures in four Spanish national parks (Sierra Nevada, Picos de Europa, Ordesa y Monte Perdido, Aigüestortes). Yearly green-up calendar (MODIS MCD12Q2 by its ID), snow melt-out day and snow cover days (MOD10A1), July-August land surface temperature (MOD11A1 Terra, MYD11A1 Aqua) and MODIS NDVI of the treeless pastures above 1,800 m, 2001-2025, with Hamed-Rao trends by elevation band, standardized spring anomalies, a period comparison and correlations with ibex recruitment from open census data (GBIF). Use it to repeat this case or to build a yearly «good or bad pasture year» satellite indicator for any mountain herbivore. Partial results, no open chamois data; only the Iberian ibex of Sierra Nevada was tested.
 license: CC-BY-4.0
 metadata:
   project: EVEREST (PID2023-151939OB-I00)
@@ -10,7 +10,7 @@ metadata:
   event_date: "2001-2025 (yearly)"
   disturbance: other
   status: partial
-  monitoreo_version: "0.3.96"
+  monitoreo_version: "0.3.96 (MCD12Q2, SMOD by band, LST 1800-2200 m); 0.3.100 (SMOD, SCD, LST, NDVI series, Aqua LST; recomputed 2026-11-28)"
 ---
 
 # Mountain ungulates: pasture phenology, snow and summer heat in four Spanish national parks, 2001-2025
@@ -22,6 +22,12 @@ metadata:
 > Terra drifts earlier since 2022 (in 2025 about 9.8 h by day and 20.8-20.9 h by night, local solar time, instead of
 > about 11 h and 22 h): trends of its LST that include 2022 or later lean cooler by day and warmer at night; compare
 > them with those up to 2021, and check the bands Day_view_time and Night_view_time.
+>
+> **Recomputation with MonitorEO 0.3.100 (2026-11-28):** the MODIS catalog series (SMOD, SCD, July-August LST, MOD13Q1 NDVI) were recomputed with 0.3.100
+> (sinusoidal grid, LST snow filter), and Aqua LST (MYD11A1) was added: 16 calls in
+> `<everest>/resultados/casos/C14/recalculo_0_3_100/llamadas.json`. Aqua also drifts (later) since 2023, so it is not a
+> drift-free substitute for Terra. Old and new figures are side by side below and in
+> `recalculo_0_3_100/tablas/comparacion_antes_despues.csv`.
 
 > **Files of this recipe.** `<everest>` is the folder of the EVEREST project where this case was computed. Its local scripts (`resultados/casos/C14/scripts/`) and the census file
 > from GBIF are not part of MonitorEO. Everything else is the MonitorEO calls below, which can be repeated as they are.
@@ -96,6 +102,17 @@ All calls are in `<everest>/resultados/casos/C14/llamadas.json` (ids in brackets
 
 Total: 28 calls, each 11-70 s.
 
+Recomputation with MonitorEO 0.3.100 (2026-11-28): with 0.3.100, `time_series` (annual, same arguments without `test`) for the whole pasture and each band, and
+the Hamed-Rao trend computed locally with `monitoreo.trends.trend_rows(..., test="hamed-rao")`
+(`recalculo_0_3_100/scripts/tendencias_hamed_rao.py`): on the 0.3.96 data it gives exactly the slope and p of
+`trend_table`, and one call then gives both the series and the trend for any sub-period (Terra 2001-2021). Likewise
+`compare_series` is the mean of each 16-day step over the years of each period of the 16-day series (local, same
+result). Added calls: the July-August LST of Aqua, `"collection": "MODIS/061/MYD11A1"`, 2003-2025 (whole pasture,
+2200-2600, ≥ 2600 m); the Terra LST with `"quality": {"snow": false}` (to separate the snow filter from the grid
+change); and the Aqua overpass time, `{"collection": "MODIS/061/MYD11A1", "band": "Day_view_time", "band_scale": 0.1,
+"unit": "h", "season": ["07-01", "08-31"], "step": "annual", "metric": "mean", "stat": "median"}` [`aqua_day_view_time`].
+Not recomputed: SMOD by band, LST 1800-2200 m, `image_count`, MCD12Q2 (collection and band, unchanged).
+
 ## Results to expect
 Files under `<everest>/resultados/casos/C14/`.
 - Mean green-up start (MCD12Q2 Greenup, day of year, 2001-2024): Sierra Nevada 93, Picos 120, Ordesa 123,
@@ -110,6 +127,22 @@ Files under `<everest>/resultados/casos/C14/`.
 - Ibex kids per female 2001-2018 (n = 16): 0.13-0.45, no significant correlation with any satellite metric
   (`tablas/reclutamiento_correlaciones.csv`).
 
+Recomputation with MonitorEO 0.3.100 (2026-11-28): (0.3.96 → 0.3.100; files under `recalculo_0_3_100/tablas/`):
+- Spearman SMOD ~ Greenup: 0.90/0.64/0.64/0.55 → 0.92/0.63/0.61/0.53 (Aigüestortes/Ordesa/Picos/Sierra Nevada;
+  `correlaciones.csv`); mean melt-out 117/132/151/150 → 116/133/151/149 (SN/Picos/Ordesa/Aigüestortes).
+- SCD trend: Sierra Nevada −2.83 → −2.78 days/year (p 0.005), Picos −1.64 → −1.65 (p 0.028); SMOD Picos −1.15 → −1.11
+  (p 0.034) (`tendencias_hamed_rao.csv`).
+- Terra LST 2001-2025: Picos 2200-2600 m +0.078 → +0.080 °C/year (p 0.020), Ordesa ≥ 2600 m +0.087 → +0.083 (p 0.031),
+  Ordesa 2200-2600 m +0.055 (p 0.076) → +0.065 (Hamed-Rao p < 0.001 with n/n* 0.29; simple Mann-Kendall p 0.040).
+- Drift-free periods, whole pasture: Terra 2001-2021 +0.058 to +0.071 °C/year (p ≥ 0.08); Aqua 2003-2021 Ordesa +0.121
+  (p 0.039), the other parks +0.036 to +0.074 (p ≥ 0.22).
+- Aqua `Day_view_time` (July-August median): 12.9-13.3 h local solar time in 2003-2022, 14.2-14.4 h in 2025
+  (`recalculo_0_3_100/llamadas/aqua_day_view_time.json`).
+- Spearman LST ~ August-September NDVI in Sierra Nevada: −0.40 (p 0.047) → −0.34 (p 0.100), no longer significant;
+  August-September NDVI trend unchanged (+0.0024/year Aigüestortes, +0.0015/year Sierra Nevada; `tendencias.csv`).
+- Ibex recruitment: still no significant correlation (spring NDVI +0.16 → +0.30, p 0.25; autumn-only +0.38 → +0.48,
+  p 0.11; `reclutamiento_correlaciones*.csv`).
+
 ## Pitfalls
 - MCD12Q2 dates are days since 1970, not days of the year; its green-up in high mountains largely follows the snow
   melt-out (check `QA_Overall_1`: worse in the Pyrenees, 0.3-0.4 on average, than in Sierra Nevada, 0.09).
@@ -118,7 +151,14 @@ Files under `<everest>/resultados/casos/C14/`.
   checked in the review of 2026-11-28, `resultados/casos/C14/revision/`). Check `Day_view_time`, end LST trends in
   2021 or move to a sensor with a stable overpass. Before MonitorEO 0.3.99, MODIS LST was sampled at 1 km on a UTM grid
   and had no snow filter.
-- `trend_table` gives only the trend, not the yearly values: add the `time_series`.
+- `trend_table` gives only the trend, not the yearly values: add the `time_series`. (Recomputation with MonitorEO 0.3.100 (2026-11-28): or run only the
+  `time_series` and compute the trend with `monitoreo.trends.trend_rows`: same numbers, half the calls.)
+- Recomputation with MonitorEO 0.3.100 (2026-11-28): MODIS Aqua (MYD11A1) is not a stable substitute for Terra: its overpass moves later since 2023 (about
+  14.3 h in 2025 instead of 13.1 h), and its 2025 LST is also 2.9-3.1 °C below 2024 in Aigüestortes and Sierra Nevada.
+  End MODIS LST trends in 2021 (Terra) or 2022 (Aqua), and check `Day_view_time` of both.
+- Recomputation with MonitorEO 0.3.100 (2026-11-28): the LST snow filter (on by default since 0.3.99) changed the July-August median by 0.003 °C on average
+  (at most 0.12 °C in a year); the grid change, by up to 0.28 °C. Hamed-Rao can give very small p when the yearly
+  values are negatively autocorrelated (n/n* < 1): compare with simple Mann-Kendall before reporting it.
 - Picos has no treeless pixels ≥ 2600 m: that band returns n = 0.
 - SCD is per calendar year (it includes the next autumn snow); a hydrological year would suit winter severity better.
 - The 16-day NDVI metrics (peak date, 50 % crossing) are noisy because the snow filter changes the valid pixels from

@@ -10,7 +10,7 @@ metadata:
   event_date: "every winter 2001-2026 (October-November to February-March); outbreak 2011-12 (COPLAS campaign 2012)"
   disturbance: pest
   status: partial
-  monitoreo_version: "0.3.98"
+  monitoreo_version: "0.3.98-0.3.100"
 ---
 
 # Pine processionary moth winter defoliation, Sierra Nevada and Sierra de las Nieves, 2001-2026
@@ -18,6 +18,12 @@ metadata:
 > **Versions of MonitorEO.** Computed with MonitorEO 0.3.98, before 0.3.99. Since 0.3.99 a variable of MODIS of the
 > catalog is reduced, at its resolution, on the sinusoidal grid of its products (not on pixels of 250-1000 m of the
 > UTM zone; data given by collection and band are not): a repetition gives slightly different MODIS values.
+>
+> **Recomputation with MonitorEO 0.3.100 (2026-11-28).** The MODIS parts (`ts_modis_ndvi_rodales` and
+> `rm_modis_ndvi_brote2012`) were recomputed with 0.3.100 with the same arguments, and the case scripts rerun on them
+> (`<everest>/resultados/casos/C12/recalculo_0_3_100/`). The Landsat, Sentinel-2 and climate parts are from 0.3.98.
+> Both versions already drop MOD13Q1 pixels flagged as snow in its QA (README «Discarded pixels: clouds, water, snow,
+> aerosols»); what MODIS refuses is the `snow_ndsi` threshold.
 
 > **Files of this recipe.** `<everest>` is the folder of the EVEREST project where this case was computed; this case is in
 > `<everest>/resultados/casos/C12/`. Its stands (`rodales_coplas.gpkg`), zones (`zonas_brote2012.gpkg`,
@@ -106,11 +112,19 @@ Sentinel-2 part (2018-2026) is NOT calibrated (no open field data after 2015) an
 - Within-winter correlation in Sierra Nevada: 2012 −0.39, 2011 −0.28, 2004 0.01
   (`tablas/modis_ndvi_spearman_por_anio_sn.txt`).
 - Spring recovery unrelated to degree (ρ = −0.013, p = 0.51).
+- Recomputation with MonitorEO 0.3.100 (2026-11-28), MODIS on its native grid
+  (`recalculo_0_3_100/tablas/comparacion_modis.json`): n = 2,392; Spearman −0.181; AUC ≥ 3 vs ≤ 1 = 0.665 (was 0.659),
+  ≥ 4 = 0.714 (was 0.685); Sierra Nevada 0.675, Sierra de las Nieves 0.593 (one-sided p 0.09, two-sided 0.18); without 2011-2012 0.606 (was
+  0.593); by stand size (MODIS pixels of the 0.3.98 series) ≥ 35: 0.697 (0.696), < 35: 0.620 (0.602), < 20: 0.610
+  (two-sided p 0.03; was 0.551, p 0.32); median anomaly by degree 0…5: +0.013, −0.048, −0.353, −0.624, −0.707, −1.436;
+  threshold ≤ −1.5: sensitivity 0.220, specificity 0.898, 21.6 % of alerts with degree ≥ 3 (was 24.0 %); Sierra
+  Nevada 2012 within-winter ρ −0.40. Anomalies of the two versions correlate at ρ = 0.96.
 - Landsat NDVI 2004-2015 (scale 60): AUC 0.626, ρ = −0.105 (`tablas/landsat_ndvi_validacion.json`): worse than MODIS.
   Landsat LSWI (≈ NDII): AUC 0.544, ρ = −0.014 (p = 0.54): no signal (`tablas/landsat_lswi_validacion.json`).
 - BACI 2011-12, MODIS: difference impact −6.0 MAD, z min −2.68, tINF 2012-02, RRT 1.42 years, 91.6 % recovered;
   Landsat: −3.45 MAD, z min −1.17 (`llamadas/rm_*_brote2012.json`). Half of the MODIS difference comes from the control
-  rising (+9.8 %) while the affected stands fell (−8.8 %).
+  rising (+9.8 %) while the affected stands fell (−8.8 %). With 0.3.100: −6.16 MAD, z min −2.46, tINF 2012-02, RRT
+  1.42 years, 90.4 % recovered; affected −8.7 %, control +9.6 % (`recalculo_0_3_100/llamadas/rm_modis_ndvi_brote2012.json`).
 - Sierra Nevada: colder winters, larger drop of the whole pine forest (TMIN Dec-Feb vs mean drop ρ = 0.47, p = 0.016);
   Sierra de las Nieves: drier previous summer, lower mean COPLAS degree (ρ = −0.77, p = 0.0007, 15 years)
   (`tablas/clima_correlaciones.txt`).
@@ -130,6 +144,12 @@ Sentinel-2 part (2018-2026) is NOT calibrated (no open field data after 2015) an
   grid: small stands mix neighbouring pixels. The AUC falls with stand size (0.696 with ≥ 35 MODIS pixels, 0.551,
   not significant, with < 20; reviewer's check on `tablas/modis_ndvi_rodal_anio.csv`); rerun with ≥ 0.3.99 and keep
   to large stands. The pooled signal also leans on outbreak years (AUC 0.593 without 2011-2012).
+  Recomputation with MonitorEO 0.3.100 (2026-11-28): on the native grid the headline figures hold (AUC 0.665) and
+  stands of < 20 pixels give AUC 0.610 (two-sided p 0.03): still the weakest class, but no longer without signal.
+  Stand size here = maximum `n_pixels` of the stand in the time_series CSV; the native grid gives different counts
+  (more stand-winters with ≥ 35 pixels), so fix the size classes on one version when comparing.
+- The `snow_ndsi` threshold is refused for MODIS, but MOD13Q1 pixels flagged as snow in its QA are dropped by default
+  (both 0.3.98 and 0.3.100).
 - Pooled stand-winter p-values ignore repeated stands and shared winters: treat them as indicative only.
 - COPLAS is a visual 0-5 score per stand, revisited by a technician only for degree ≥ 3; it ends in 2015 in GBIF.
 
@@ -148,4 +168,5 @@ Sentinel-2 part (2018-2026) is NOT calibrated (no open field data after 2015) an
 `<everest>/resultados/casos/C12/`: `informe.md` (report), `estado.json`,
 `llamadas.json` and `llamadas/` (calls and answers), `monitoreo/` (CSV, PNG, GeoTIFF with README), `tablas/`
 (derived tables), `figuras/`, `scripts/`, `fuentes/` (COPLAS archive and `ORIGEN.txt`), `rodales_coplas.gpkg`,
-`rodales_coplas_grados.csv`, `zonas_brote2012.gpkg`, `pinar_coplas_*.gpkg`. Not published in the results viewer.
+`rodales_coplas_grados.csv`, `zonas_brote2012.gpkg`, `pinar_coplas_*.gpkg`, `recalculo_0_3_100/` (MODIS recomputed with
+0.3.100: calls, answers, tables, figures, `comparar.py`). Not published in the results viewer.

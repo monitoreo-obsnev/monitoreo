@@ -10,7 +10,7 @@ metadata:
   event_date: "2003-2025 (July-August and December-February)"
   disturbance: other
   status: validated
-  monitoreo_version: "0.3.98"
+  monitoreo_version: "0.3.98 (Landsat, ECOSTRESS, transects, MOD10A1 snow); 0.3.100 (MODIS LST series and anomalies, recomputed 2026-11-28)"
 ---
 
 # Thermal buffering by vegetation in Sierra Nevada: day and night land surface temperature by cover, 2003-2025
@@ -22,6 +22,10 @@ metadata:
 > Terra drifts earlier since 2022 (in 2025 about 9.8 h by day and 20.8-20.9 h by night, local solar time, instead of
 > about 11 h and 22 h): trends of its LST that include 2022 or later lean cooler by day and warmer at night; compare
 > them with those up to 2021, and check the bands Day_view_time and Night_view_time.
+>
+> **Recomputation with MonitorEO 0.3.100 (2026-11-28):** the 8 MODIS calls of steps 5 and 8 (and the Terra daytime holm-oak check) were repeated with the
+> same arguments in `<everest>/resultados/casos/C19/recalculo_0_3_100/` (default `quality`, so with the new snow
+> filter). Results to expect below give both versions (0.3.98 → 0.3.100).
 
 > **Files of this recipe.** `<everest>` is the folder of the EVEREST project where this case was computed.
 > The cover zones (`resultados/casos/C19/zonas/*.gpkg`), the local scripts
@@ -120,12 +124,21 @@ All calls are in `<everest>/resultados/casos/C19/llamadas.json` (ids in brackets
   (`tablas/delta_landsat_ecostress_*.csv`).
 - MODIS homogeneous cells vs pasture-shrub: Aqua 13:30 summer, dense pine −2.18 °C mean, −3.50 °C on the hottest days,
   slope 0.73; on AEMET heatwave days −2.02 vs −2.20 on the rest. Coldest snow-free winter nights: dense pine +1.65
-  (Terra) / +2.00 °C (Aqua); oak −0.66 / −0.97 (`tablas/delta_modis_celdas.csv`).
+  (Terra) / +2.00 °C (Aqua); oak −0.66 / −0.97 (`tablas/delta_modis_celdas.csv`, 0.3.98).
+  Recomputation with MonitorEO 0.3.100 (2026-11-28) (`recalculo_0_3_100/tablas/delta_modis_celdas.csv`, native MODIS grid): dense pine −2.54 °C mean,
+  −3.98 °C on the hottest days, slope 0.70; heatwave days −2.35 vs −2.56; open pine −1.41 (was −0.85); oak −1.73
+  (was −1.20); holm oak +0.52 (was +0.96); night (Terra / Aqua) dense pine +1.16 / +1.43, oak −0.46 / −0.74 (was
+  −0.98 / −0.99); coldest snow-free winter nights dense pine +1.61 / +2.24, oak −0.24 / −0.71. Fewer paired days (one
+  pixel per cell: dense pine summer day 14,885 → 13,962 stratum-days).
 - Summer day − night amplitude (Aqua, 1,400-2,200 m): dense pine 20.1 °C, open pine 19.9, pasture-shrub 23.4,
-  grassland 24.9 (`tablas/amplitud_dia_noche_modis_1400_2200.csv`).
+  grassland 24.9 (`tablas/amplitud_dia_noche_modis_1400_2200.csv`). Recomputation with MonitorEO 0.3.100 (2026-11-28): 20.0, 19.7, 23.7, 25.1.
 - Against HighResClimNevada air (1,600-2,200 m): LST − tasmax on the hottest air days +7.0 °C dense pine vs +9.3 °C
   pasture-shrub; on the coldest winter nights LST − tasmin +3.6 vs +1.1 °C; slopes LST ~ tasmax 0.37-0.61 with no clear
-  order by cover (`tablas/lst_frente_aire_wrf.csv`).
+  order by cover (`tablas/lst_frente_aire_wrf.csv`). Recomputation with MonitorEO 0.3.100 (2026-11-28): +7.0 vs +9.6 °C by day, +3.6 vs +1.4 °C on the
+  coldest winter nights, slopes 0.62 (dense pine) and 0.49 (pasture-shrub).
+- Holm oak − pasture-shrub in the 10 verification strata, summer 2013-2025 (`verificacion_encinar/delta.py`): MODIS Aqua
+  +0.85 → +0.44 °C, Terra +0.46 → +0.10 °C (Recomputation with MonitorEO 0.3.100 (2026-11-28)), Landsat −1.30 °C in the same cells.
+- z anomalies (16-day): practically unchanged with 0.3.100 (2015-07-01: z 2.02 pasture-shrub, 2.19 dense pine).
 - Image counts: Landsat ~4 valid observations per pixel per season; ECOSTRESS night median 1.8 per pixel per summer
   (2 summers without data) (`llamadas/ic_*.json`).
 
@@ -135,11 +148,15 @@ All calls are in `<everest>/resultados/casos/C19/llamadas.json` (ids in brackets
   cell got 2-3 values a day, including neighbouring pixels. The holm oak came out +0.96 °C (Aqua 13:30) and +0.46 °C
   (Terra 10:30) warmer than pasture-shrubland with MODIS, but −1.30 °C cooler with Landsat inside the same cells
   (files in `verificacion_encinar/`). Trust Landsat for open covers; check `n_pixels` per cell before trusting MODIS cells.
+  Recomputation with MonitorEO 0.3.100 (2026-11-28): with the native grid (`n_pixels` = number of cells) the holm oak goes from +0.96 to +0.52 °C (Aqua, 2003-2025, all strata); in the
+  2013-2025 check of 10 strata, Aqua +0.85 → +0.44 °C and Terra +0.46 → +0.10 °C, but is still not cooler as with Landsat: pixel mixing explained part of the discrepancy, not all of it (open
+  canopy seen at 1 km, viewing geometry in steep terrain, few reference cells: not checked). Keep Landsat for the holm oak.
 - `where` conditions are AND-ed: a north aspect (315-45°) needs two calls (0-45 and 315-360).
 - MODIS 1 km mixes covers: build homogeneous cells on the sinusoidal grid locally; at forest elevations only
   pasture-shrub is available as open reference in MODIS (homogeneous grassland and bare ground are above 2,400 m).
 - MODIS LST had no snow filter before 0.3.99 (now on by default): the winter days were screened with MOD10A1
-  `NDSI_Snow_Cover` in both cells compared, which the pairing still needs.
+  `NDSI_Snow_Cover` in both cells compared, which the pairing still needs. Recomputation with MonitorEO 0.3.100 (2026-11-28): the built-in filter (same-day
+  MOD10A1/MYD10A1, NDSI_Snow_Cover ≥ 35 in any 500 m pixel) is looser than the case's own (< 10 in both cells): keep both.
 - MODIS Terra overpass drifts in the last years: night z anomalies of 2022-2025 are partly an artefact; prefer
   same-day cover − open differences.
 - The ETH canopy height gives 5-7 m on bare rock and grassland at high elevation (model artefact).
@@ -166,5 +183,6 @@ All calls are in `<everest>/resultados/casos/C19/llamadas.json` (ids in brackets
 
 ## Files
 `<everest>/resultados/casos/C19/`: `informe.md` (report, in Spanish), `estado.json`,
-`llamadas.json`, `llamadas/` (responses and figures), `monitoreo/` (CSV, PNG, README), `zonas/`, `scripts/`, `tablas/`,
+`llamadas.json`, `llamadas/` (responses and figures), `recalculo_0_3_100/` (MODIS recomputed with 0.3.100: calls,
+responses, adapted `analisis.py`, `comparar.py`, tables and old-vs-new comparisons), `monitoreo/` (CSV, PNG, README), `zonas/`, `scripts/`, `tablas/`,
 `fuentes/` (MFE50, AEMET PDFs, ORIGEN.txt).
