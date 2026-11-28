@@ -114,7 +114,7 @@ SWITCH_ACCOUNT = ' In the assistant: press «Use my Google account» and choose 
 ADVICE = ('list_variables', 'describe_variable', 'find_protected_areas',
           'find_admin_units', 'find_seas', 'describe_asset', 'community_themes',
           'community_datasets', 'landcover_maps', 'find_datasets', 'list_classes',
-          'apply_parameters', 'image_count', 'recovery_metrics', 'control_ring', 'recovery_map')  # their answers go to the model (apply_parameters: to repeat an analysis
+          'apply_parameters', 'image_count', 'recovery_metrics', 'control_ring', 'recovery_map', 'find_burnt_areas')  # their answers go to the model (apply_parameters: to repeat an analysis
 # from its JSON; image_count: how many images a period has, to choose it)
 RESULTS = ('time_series', 'region_stats', 'map_layer', 'rgb_map', 'trend_table', 'trend_map', 'compare_series',
            'compare_map', 'burn_severity', 'download_image', 'download_rgb', 'download_trend', 'download_comparison',
@@ -192,6 +192,7 @@ LABELS = {'manual': 'Looking in the manual of MonitorEO', 'read_document': 'Read
           'find_protected_areas': 'Searching for protected areas named «{text}»',
           'find_admin_units': 'Searching for administrative units named «{text}»',
           'find_seas': 'Searching for oceans and seas named «{text}»',
+          'find_burnt_areas': 'Searching for burnt areas of EFFIS',
           'describe_asset': 'Reading the description of {asset} in Earth Engine',
           'community_themes': 'Looking at the themes of the GEE Community Catalog',
           'community_datasets': 'Looking at the datasets of the GEE Community Catalog',
@@ -265,7 +266,10 @@ whole country, e.g. "ESP"), {{"island_at": [lon, lat]}} (the island at a point),
 "Alboran Sea"}} (an ocean or sea, a sea area of the IHO, with the MRGID or the English name that find_seas returns, \
 never made up; or a list), {{"sea_at": [lon, lat]}} (the sea at a point), {{"ecoregion_at": [lon, lat]}}, \
 {{"biome_at": [lon, lat]}} (the biome at a point), {{"biome_id": N}} (a biome of RESOLVE: {biomes}), \
-{{"bbox": [west, south, east, north]}} or {{"point": [lon, lat], "buffer": metres}}. Any region takes "within", \
+{{"bbox": [west, south, east, north]}}, {{"point": [lon, lat], "buffer": metres}} or an official perimeter: \
+{{"ems": "EMSR375"}} (the burnt or flooded area of an activation of Copernicus EMS, with the code the user or a source \
+gives), {{"effis_id": ID}} (a burnt area of EFFIS, with the ID that find_burnt_areas returns, never made up), \
+{{"wfs": URL, "layer": NAME}} (a layer of a WFS) or {{"url": URL}} (a vector file on the web). Any region takes "within", \
 another region: only its part inside it, e.g. {{"biome_id": 12, "within": {{"country": "ESP"}}}} (the Mediterranean \
 biome in Spain). Countries and big regions: MODIS, or a monthly or annual step (regions of more than 100,000 km², \
 as most seas, are computed on pixels of 1 to 10 km); a whole biome spans continents: \

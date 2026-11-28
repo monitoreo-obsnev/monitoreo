@@ -96,6 +96,11 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
+### Unreleased
+
+- **Python package, R package, Command line, MCP server, Assistant**: Official perimeters as study areas, downloaded once and cited as their sources ask: `{"ems": "EMSR375"}` (the burnt or flooded area of an activation of Copernicus EMS, from its grading or its last delineation; `mo_ems()`), `{"effis_id": 17545}` (a burnt area of EFFIS; `mo_effis()`), `{"wfs": URL, "layer": ...}` (a layer of a WFS, e.g. the burnt areas of ICNF; `mo_wfs()`) and `{"url": URL}` (a vector file on the web; `mo_url()`).
+- **Python package, R package, Command line, MCP server, Assistant**: The burnt areas of EFFIS (2000 to today) in a region or a country, the largest first (`find_burnt_areas`; `monitoreo burnt`; `mo_burnt_areas()`), with the region of the perimeter of each.
+
 ### [v0.3.83](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.83) · 2026-11-28 · package 0.3.93
 
 - **Python package, R package, Command line, MCP server, Assistant**: The recovery after a disturbance on each pixel (`recovery_map`; `monitoreo recovery-map`; `mo_recovery_map()`): the metric of each year of a period, within a season, and on each pixel the metrics of Marcos et al. (2023) of its annual series (reference, impact, DIT, RRT, the recovery time, RET and the share recovered), a GeoTIFF of a band each and another of a band per year. Not in the QGIS plugin nor the Earth Engine app.

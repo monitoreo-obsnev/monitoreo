@@ -758,6 +758,31 @@ def find_admin_units(text, level=1, country=None, limit=20):
 	return areas.find_admin_units(text, level, country, limit)
 
 
+def find_burnt_areas(region=None, country=None, start=None, end=None, min_area_ha=None, limit=50):
+	"""The burnt areas of the European Forest Fire Information System (EFFIS, 2000 to today) that touch REGION (any
+	region, see areas.region: its bounding box is asked to EFFIS, then the burnt areas that touch it are kept) or that
+	are in COUNTRY (its two-letter code, e.g. "ES" or "PT"), which began between START and END (YYYY-MM-DD) and burnt
+	at least MIN_AREA_HA hectares, the largest first, at most LIMIT: [{effis_id, firedate, finaldate, area_ha, country,
+	province, commune, lastupdate, region}]. Use the region of each, {"effis_id": ID}, as the region of the other
+	tools; {"ems": "EMSR375"} is the perimeter of an activation of Copernicus EMS (monitoreo.perimeters)."""
+	from . import perimeters
+	if region is None and not country:
+		raise ValueError('find_burnt_areas takes a region or a country (its two-letter code, e.g. "ES")')
+	for date in (start, end):
+		if date and not re.match(r'^\d{4}-\d{2}-\d{2}$', str(date)):
+			raise ValueError(f'start and end are dates YYYY-MM-DD, not {date!r}')
+	if region is None:
+		return perimeters.find_burnt_areas(country=country, start=start, end=end, min_area_ha=min_area_ha, limit=limit)
+	areas.check(region)
+	if isinstance(region, dict) and region.get('bbox') is not None and region.get('within') is None:
+		return perimeters.find_burnt_areas(region['bbox'], None, None, start, end, min_area_ha, limit)
+	geom = areas.region(region).geometry(100)
+	info = ee.Dictionary({'bounds': geom.bounds(100).coordinates(), 'geometry': geom}).getInfo()
+	lons, lats = zip(*info['bounds'][0])
+	return perimeters.find_burnt_areas([min(lons), min(lats), max(lons), max(lats)], info['geometry'], None, start,
+	                                   end, min_area_ha, limit)
+
+
 # Variables ---------------------------------------------------------------------------------------------------------
 
 def make_spec(variable=None, sensor=None, start=None, end=None, metric='mean', temporal='period', interannual='mean',

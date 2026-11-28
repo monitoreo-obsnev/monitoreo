@@ -936,6 +936,98 @@ mo_geojson <- function(geojson, name_field = NULL) {
   list(geojson = as.character(geojson), name_field = name_field)
 }
 
+#' Official perimeters as regions
+#'
+#' The perimeters of the official sources, as regions of the other functions; MonitorEO downloads them once (to
+#' ~/MonitorEO/perimeters) and cites them with the credit lines their sources ask for. \code{mo_ems()}: the observed
+#' event (burnt or flooded area) of each area of interest (AOI) of a rapid mapping activation of the Copernicus
+#' Emergency Management Service, from its grading product or, without one, its last delineation.
+#' \code{mo_effis()}: burnt areas of the European Forest Fire Information System (EFFIS, 2000 to today; find them with
+#' \code{mo_burnt_areas()}). \code{mo_wfs()}: a layer of a Web Feature Service, e.g. the burnt areas of ICNF
+#' (Portugal). \code{mo_url()}: a vector file on the web (GeoJSON, GeoPackage, KML, a zipped shapefile...).
+#'
+#' @param code code of the activation of Copernicus EMS, e.g. \code{"EMSR375"}.
+#' @param aoi number of one of its areas of interest (default: all of them, a feature each).
+#' @param product \code{"delineation"} or \code{"grading"} (default: grading if there is one).
+#' @param monitoring number of the monitoring product (0: the first product; default: the last one).
+#' @param id ids of burnt areas of EFFIS (\code{effis_id} of \code{mo_burnt_areas()}).
+#' @param url address of the WFS or of the file.
+#' @param layer name of the layer (the typeName of the WFS, as its GetCapabilities lists them).
+#' @param cql_filter condition sent to the WFS (CQL, as GeoServer understands it), e.g. \code{"AreaHaSIG > 10000"}.
+#' @param filter condition on the fields of the features (OGR SQL), applied after downloading them.
+#' @param name_field the field that names the features.
+#' @param dissolve all the features as one.
+#' @return A region (a list) for the other functions.
+#' @references San-Miguel-Ayanz, J., Schulte, E., Schmuck, G., Camia, A., Strobl, P., Liberta, G., et al. (2012).
+#'   Comprehensive monitoring of wildfires in Europe: The European Forest Fire Information System (EFFIS). In
+#'   Approaches to managing disaster: Assessing hazards, emergencies and disaster impacts. InTech.
+#'   \doi{10.5772/28441}
+#' @examples
+#' \dontrun{
+#' mo_time_series(mo_ems("EMSR375"), "NDVI", "Sentinel-2", "2019-01-01", "2020-12-31")
+#' mo_region_stats(mo_effis(17545), "NDVI", "Sentinel-2", "2019-09-01", "2019-09-30")
+#' mo_wfs("https://si.icnf.pt/wfs/areas_ardidas", "BDG:ardida_2022", cql_filter = "AreaHaSIG > 10000",
+#'        name_field = "Cod_SGIF")
+#' }
+#' @name perimeters
+NULL
+#' @rdname perimeters
+#' @export
+mo_ems <- function(code, aoi = NULL, product = NULL, monitoring = NULL) {
+  r <- list(ems = code)
+  if (!is.null(aoi)) r$aoi <- as.integer(aoi)
+  if (!is.null(product)) r$product <- product
+  if (!is.null(monitoring)) r$monitoring <- as.integer(monitoring)
+  r
+}
+#' @rdname perimeters
+#' @export
+mo_effis <- function(id) list(effis_id = as.list(as.integer(id)))
+#' @rdname perimeters
+#' @export
+mo_wfs <- function(url, layer, cql_filter = NULL, filter = NULL, name_field = NULL, dissolve = FALSE) {
+  r <- list(wfs = url, layer = layer, cql_filter = cql_filter, filter = filter, name_field = name_field)
+  if (isTRUE(dissolve)) r$dissolve <- TRUE
+  r[!vapply(r, is.null, TRUE)]
+}
+#' @rdname perimeters
+#' @export
+mo_url <- function(url, layer = NULL, filter = NULL, name_field = NULL, dissolve = FALSE) {
+  r <- list(url = url, layer = layer, filter = filter, name_field = name_field)
+  if (isTRUE(dissolve)) r$dissolve <- TRUE
+  r[!vapply(r, is.null, TRUE)]
+}
+
+#' Burnt areas of EFFIS
+#'
+#' The burnt areas of the European Forest Fire Information System (EFFIS, 2000 to today) that touch a region (its
+#' bounding box is asked to EFFIS) or that are in a country, the largest first. Their official perimeter is the region
+#' \code{mo_effis(effis_id)}.
+#'
+#' @param region a region (see \link{regions}), or NULL with \code{country}.
+#' @param country two-letter code of a country, e.g. \code{"ES"} or \code{"PT"}.
+#' @param start,end the burnt areas that began between these days (YYYY-MM-DD).
+#' @param min_area_ha the burnt areas of at least these hectares.
+#' @param limit maximum number of burnt areas.
+#' @return A data.frame: effis_id, firedate, finaldate, area_ha, country, province, commune, lastupdate; its
+#'   attributes references and credits say how to cite them.
+#' @references San-Miguel-Ayanz, J., Schulte, E., Schmuck, G., Camia, A., Strobl, P., Liberta, G., et al. (2012).
+#'   Comprehensive monitoring of wildfires in Europe: The European Forest Fire Information System (EFFIS). In
+#'   Approaches to managing disaster: Assessing hazards, emergencies and disaster impacts. InTech.
+#'   \doi{10.5772/28441}
+#' @examples
+#' \dontrun{
+#' fires <- mo_burnt_areas(mo_wdpa(555546231), start = "2010-01-01", min_area_ha = 50)
+#' mo_time_series(mo_effis(fires$effis_id[1]), "NBR", "Sentinel-2", "2018-01-01", "2021-12-31")
+#' }
+#' @export
+mo_burnt_areas <- function(region = NULL, country = NULL, start = NULL, end = NULL, min_area_ha = NULL, limit = 50) {
+  rows <- services()$find_burnt_areas(region, country, start, end, min_area_ha, as.integer(limit))
+  rows <- lapply(rows, function(r) { r$region <- NULL; r })
+  refs <- reticulate::import("monitoreo.references")$cite("find_burnt_areas", list(region = region))
+  cited(rows_df(rows), refs)
+}
+
 #' A region from an sf object
 #'
 #' @param x an sf object of polygons, in any CRS.

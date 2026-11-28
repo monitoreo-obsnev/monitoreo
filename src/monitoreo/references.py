@@ -24,7 +24,7 @@ References:
 import datetime as dt
 import unicodedata
 
-from . import about, areas, catalog, fire, landcover, sensors
+from . import about, areas, catalog, fire, landcover, perimeters, sensors
 
 MONITOREO = 'monitoreo'  # the ID of the citation of MonitorEO (monitoreo.about)
 LANDSAT = 'LANDSAT'  # the collection of the catalog with Landsat 5, 7, 8 and 9 (monitoreo.sensors.LANDSAT)
@@ -302,6 +302,14 @@ def _region(region):
 	return cols
 
 
+def _perimeter_refs(region):
+	"""The references of the official perimeters of REGION and of its within: EFFIS, San-Miguel-Ayanz et al. (2012)."""
+	out = ['sanmiguelayanz2012'] if region.get('effis_id') is not None else []
+	if isinstance(region.get('within'), dict):
+		out += _perimeter_refs(region['within'])
+	return out
+
+
 def _picks(args):
 	"""Whether the variable of a true colour chooses the image of each pixel (its metric, or its metric between
 	years, max or min: the colours of the image where the variable is highest or lowest), so that its formula is
@@ -472,6 +480,15 @@ def cite(tool, args=None, date=None, datasets=()):
 	more, cred = of_datasets(cols)
 	ids += more
 	credits += cred
+	ring_args = args.get('ring') if isinstance(args.get('ring'), dict) else {}
+	for r in (args.get('region'), args.get('area'), args.get('offset_region'), ring_args.get('exclude'),
+	          ring_args.get('within'), *((args.get('exclude'), args.get('within')) if tool == 'control_ring' else ())):
+		if isinstance(r, dict):  # official perimeters, also of a control ring, as their sources ask (perimeters)
+			ids += _perimeter_refs(r)
+			credits += [c for c in perimeters.credits(r) if c not in credits]
+	if tool == 'find_burnt_areas':
+		ids.append('sanmiguelayanz2012')
+		credits += [c for c in [perimeters.EFFIS_CREDIT] if c not in credits]
 	if tool in EARTH_ENGINE:
 		ids += _methods('earth_engine')
 	if tool != 'about':

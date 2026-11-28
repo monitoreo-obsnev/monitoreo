@@ -102,7 +102,10 @@ The region is a JSON dictionary, e.g. '{"wdpa_id": 555513}', '{"admin2": 141938}
 '{"island_at": [2.9, 39.6]}', '{"sea": "Alboran Sea"}' or '{"sea": 3324}' (a sea area of the IHO, by its name or its
 MRGID: monitoreo seas finds them), '{"sea_at": [-2.5, 36]}' (the sea at a point), '{"biome_at": [-3.3, 37.1]}' (the
 biome of RESOLVE Ecoregions 2017 at a point; by its code, 1 to 14 or 99, '{"biome_id": 12}': monitoreo classes BIOME
-lists them) or '{"bbox": [-3.5, 37, -3, 37.2]}'; any region takes "within", another region, to keep only its part
+lists them), '{"bbox": [-3.5, 37, -3, 37.2]}' or an official perimeter, downloaded once: '{"ems": "EMSR375"}' (the
+observed event of an activation of Copernicus EMS), '{"effis_id": 17545}' (a burnt area of EFFIS: monitoreo burnt
+finds them), '{"wfs": URL, "layer": "BDG:ardida_2022"}' (a layer of a WFS) or '{"url": URL}' (a vector file on the
+web); any region takes "within", another region, to keep only its part
 inside it, e.g. the Mediterranean biome in Spain: '{"biome_id": 12, "within": {"country": "ESP"}}' (a whole biome spans
 continents: give it within a region, or MODIS or the climate at an annual step). The large areas (more than 100,000
 km²: a country, a biome, most seas) are computed by default on pixels of 1 to 10 km. The Earth Engine
@@ -450,6 +453,14 @@ def main(argv=None):
 	p = sub.add_parser('seas', help='oceans and seas (the sea areas of the IHO, Marine Regions) by name, without Earth '
 	                                'Engine: --region \'{"sea": 3324}\' or \'{"sea": "Alboran Sea"}\'')
 	p.add_argument('text')
+	p.add_argument('--limit', type=int, default=20)
+	p = sub.add_parser('burnt', help='burnt areas of EFFIS (2000 to today) in a region or a country, the largest first: '
+	                                 'their official perimeter is --region \'{"effis_id": ID}\'')
+	p.add_argument('--region', help='JSON dictionary: the burnt areas that touch it (its bounding box is asked to EFFIS)')
+	p.add_argument('--country', help='two-letter code, e.g. ES or PT (without --region)')
+	p.add_argument('--start', help='that began from this day (YYYY-MM-DD)')
+	p.add_argument('--end', help='that began until this day (YYYY-MM-DD)')
+	p.add_argument('--min-area', type=float, help='hectares')
 	p.add_argument('--limit', type=int, default=20)
 	p = sub.add_parser('asset', help='what an image or collection of images of Earth Engine is: type, bands, units, '
 	                                 'scale, dates and how to cite it (reads its metadata in Earth Engine)')
@@ -959,7 +970,8 @@ def main(argv=None):
 		return
 	if args.cmd == 'landcover':  # the table of correspondences of catalog.json: without Earth Engine
 		return _landcover(args, services)
-	if (args.cmd == 'units' and args.level == 3) or args.cmd == 'seas':  # the municipalities of Spain and the seas
+	if (args.cmd == 'units' and args.level == 3) or args.cmd == 'seas' or \
+			(args.cmd == 'burnt' and not args.region):  # the municipalities of Spain, the seas, the fires of a country
 		return _compute(args, services)  # (their indexes): without Earth Engine
 	if args.cmd == 'mcp':
 		_mcp(args)
@@ -1124,6 +1136,17 @@ def _compute(args, services):
 		except ValueError as e:  # level 3 of a country that is not Spain
 			sys.exit(f'ERROR: {e}')
 		_table(_fmt(units), [code, 'DISP_EN', 'ISO3_CODE'])
+		return
+	if args.cmd == 'burnt':
+		from . import references
+		region = json.loads(args.region) if args.region else None
+		try:
+			rows = services.find_burnt_areas(region, args.country, args.start, args.end, args.min_area, args.limit)
+		except ValueError as e:
+			sys.exit(f'ERROR: {e}')
+		_table(_fmt(rows), ['effis_id', 'firedate', 'finaldate', 'area_ha', 'country', 'province', 'commune'])
+		print(f'\n{len(rows)} burnt areas of EFFIS | use one as --region \'{{"effis_id": ID}}\' | cite: '
+		      + '; '.join(r['text'] for r in references.cite('find_burnt_areas', {'region': region})['references']))
 		return
 	if args.cmd == 'seas':
 		seas = [dict(s, BOUNDS=' '.join(f'{b:g}' for b in s['BOUNDS']))
