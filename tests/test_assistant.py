@@ -1708,6 +1708,8 @@ def test_tools_of_the_mcp_server():
 	tools = assistant.model_tools([assistant._json(t) for t in asyncio.run(mcp.server.list_tools())])
 	names = [t['function']['name'] for t in tools]
 	assert sorted(names) == sorted(assistant.ADVICE + assistant.RESULTS + assistant.TASKS)
+	every = [t.name for t in asyncio.run(mcp.server.list_tools())]
+	assert set(assistant.NOT_FOR_MODEL) <= set(every) and not set(assistant.NOT_FOR_MODEL) & set(names)
 	text = json.dumps(tools)
 	assert len(text) < 60000, len(text)
 	assert len(text) + len(assistant.instructions()) < 90000  # with the instructions of the models of Ollama

@@ -45,7 +45,7 @@ UNUSED = ['googleapiclient/discovery_cache/documents', 'ee/tests', 'ee/apitestca
 # module the plugin never imports (documents.py has XML parsers that Bandit flags) and none that it imports: report.py
 # writes the titles and facts of the README of each result (monitoreo.readme)
 MONITOREO_UNUSED = ['cli.py', 'mcp_server.py', 'update.py', 'viewer', 'assistant.py', 'engine.py', 'manual.py', 'ui',
-                    'documents.py', 'notebook.py']
+                    'documents.py', 'notebook.py', 'skills.py', 'recipes']
 OURS =re.compile(r'monitoreo_qgis/(ext/monitoreo/|[^/]+$)')  # the plugin and monitoreo, not the bundled libraries
 
 

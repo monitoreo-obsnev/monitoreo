@@ -121,6 +121,10 @@ RESULTS = ('time_series', 'region_stats', 'map_layer', 'rgb_map', 'trend_table',
            'compare_map', 'burn_severity', 'download_image', 'download_rgb', 'download_trend', 'download_comparison',
            'download_variables', 'timelapse', 'area_by_class', 'transect')  # their answers go only to the user and the report
 TASKS = ('export_image_to_drive', 'export_time_series_to_drive', 'task_status')  # answers without values: to both
+# tools of the MCP server that the model of the assistant does not get (model_tools keeps only those of ADVICE, RESULTS
+# and TASKS): the recipes of the case studies (their text is long, for the clients that run a case step by step; the
+# assistant answers from the manual)
+NOT_FOR_MODEL = ('recipes',)
 # arguments the model does not see (it sees collection: the ID of a collection of Earth Engine, see describe_asset)
 HIDDEN = ('scale', 'vmin', 'vmax', 'crs', 'lang', 'limit', 'quick', 'preview')
 # and those it does not see in some tools (the trend test: in trend_table, which the maps of its pixels copy)
