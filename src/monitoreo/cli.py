@@ -8,6 +8,7 @@
     monitoreo parks TEXT [--ramsar]                  protected areas of WDPA with TEXT in their name
     monitoreo units TEXT [--level 1|2|3] [--country ISO3]   administrative units of FAO GAUL 2025 by name; level 3:
                                                      the municipalities of Spain, of the IGN (without Earth Engine)
+    monitoreo recipes [NAME]                         the recipes of the case studies (the skills of the MCP server)
     monitoreo seas TEXT                              oceans and seas (the sea areas of the IHO, Marine Regions) by
                                                      name, with their MRGID (without Earth Engine)
     monitoreo series VARIABLE --sensor S --region JSON --start D --end D [--step monthly] [--csv F] [--png F] [--doy]
@@ -453,6 +454,9 @@ def main(argv=None):
 	                    'IGN, without Earth Engine: --region \'{"admin3": "18134"}\')')
 	p.add_argument('--country', help='ISO3 code, e.g. ESP')
 	p.add_argument('--limit', type=int, default=20)
+	p = sub.add_parser('recipes', help='the recipes of the case studies done with MonitorEO (its skills): the list, or '
+	                                   'the text of one')
+	p.add_argument('name', nargs='?', help='a recipe: its text (SKILL.md)')
 	p = sub.add_parser('seas', help='oceans and seas (the sea areas of the IHO, Marine Regions) by name, without Earth '
 	                                'Engine: --region \'{"sea": 3324}\' or \'{"sea": "Alboran Sea"}\'')
 	p.add_argument('text')
@@ -999,6 +1003,17 @@ def main(argv=None):
 		return
 	if args.cmd == 'landcover':  # the table of correspondences of catalog.json: without Earth Engine
 		return _landcover(args, services)
+	if args.cmd == 'recipes':  # the files of the package: without Earth Engine
+		from . import skills
+		if args.name:
+			if args.name not in skills.names():
+				sys.exit(f"ERROR: unknown recipe {args.name!r}: the recipes are {', '.join(skills.names())}")
+			print(skills.read(f'{skills.SCHEME}{args.name}/SKILL.md')[0])
+			return
+		for r in skills.catalog():
+			print(f"{r['name']}\n  {r['description']}\n")
+		print('monitoreo recipes NAME prints one; the MCP server serves them as skills (skill://monitoreo/NAME/SKILL.md)')
+		return
 	if (args.cmd == 'units' and args.level == 3) or args.cmd == 'seas' or \
 			(args.cmd == 'burnt' and not args.region):  # the municipalities of Spain, the seas, the fires of a country
 		return _compute(args, services)  # (their indexes): without Earth Engine

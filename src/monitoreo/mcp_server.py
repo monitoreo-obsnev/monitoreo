@@ -158,6 +158,11 @@ classes (the codes to keep) or exclude (those to leave out), e.g. {"variable": "
 [12]}. list_classes gives their codes and names (find an ecoregion by name with text). No transect, time series, trends
 or comparisons.
 
+Recipes: how the case studies done with MonitorEO were computed (the disturbances of the EVEREST national parks:
+fires, a frost, a dieback, an avalanche) and the method they followed, to repeat or adapt them: the skills of this server
+(skill://monitoreo/<name>/SKILL.md; monitoreo-disturbance-case-study is the method) or, without skills, the tool
+recipes (no name: the list; a name: its text). Read the recipe of a similar case before a new one.
+
 Workflow: list_variables (or describe_variable) to choose variable and sensor; find_protected_areas to get the
 WDPA ID of a protected area (designation "ramsar": only Ramsar sites), find_admin_units the code of an
 administrative unit, or find_seas the MRGID of an ocean or sea; then time_series (table, CSV and chart), map_layer (map tiles and preview),
@@ -268,7 +273,24 @@ the user writes in Spanish. The manual is the wiki of MonitorEO, with every page
 	"""/Publications) has articles of the team of MonitorEO with the questions they answered and how to ask MonitorEO for
 them: examples for a user who does not know what or how to ask."""
 
-server = Server('MonitorEO', instructions=INSTRUCTIONS)
+def _server():
+	"""The server of MonitorEO: with mcp 2, with the extension Skills of MCP (its recipes: monitoreo.skills); with mcp
+	1.x, which has no extensions, the tool recipes serves them."""
+	from . import skills
+	try:
+		ext = skills.extension()
+	except (ValueError, OSError) as e:
+		print(f'MonitorEO: the recipes are not served as skills ({e}): the tool recipes has them', file=sys.stderr)
+		ext = None
+	if ext is not None:
+		try:
+			return Server('MonitorEO', instructions=INSTRUCTIONS, extensions=[ext])
+		except (TypeError, ValueError, OSError) as e:  # an mcp 2 without extensions, or recipes that cannot be read
+			print(f'MonitorEO: the recipes are not served as skills ({e}): the tool recipes has them', file=sys.stderr)
+	return Server('MonitorEO', instructions=INSTRUCTIONS)
+
+
+server = _server()
 
 
 WHERE_DOC = """
@@ -658,6 +680,20 @@ def find_burnt_areas(region: Optional[dict] = None, country: Optional[str] = Non
 	cited = references.cite('find_burnt_areas', {'region': region})
 	return _text({'burnt_areas': rows, 'references': [r['text'] for r in cited['references']],
 	              'credits': cited['credits']})
+
+
+@tool
+def recipes(name: Optional[str] = None) -> str:
+	"""The recipes of MonitorEO: how the case studies done with it were computed (the exact calls, regions, periods,
+	results to expect, pitfalls and sources) and the method they followed (monitoreo-disturbance-case-study), to repeat or
+	adapt them; the same as its skills (skill://monitoreo/<name>/SKILL.md) for clients without the extension Skills of
+	MCP. Without name, the list (name, description); with a name, the text of its SKILL.md."""
+	from . import skills
+	if not name:
+		return _text(skills.catalog())
+	if name not in skills.names():
+		raise ToolError(f"unknown recipe {name!r}: the recipes are {', '.join(skills.names())}")
+	return skills.read(f'{skills.SCHEME}{name}/SKILL.md')[0]
 
 
 @tool

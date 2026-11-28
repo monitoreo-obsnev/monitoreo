@@ -839,6 +839,30 @@ mo_seas <- function(text, limit = 20) {
   rows_df(services()$find_seas(text, as.integer(limit)))
 }
 
+#' Recipes of the case studies
+#'
+#' The recipes of the case studies done with MonitorEO (the disturbances of the EVEREST national parks...) and the
+#' method they followed: the exact calls, regions, periods, results to expect, pitfalls and sources, to repeat or adapt
+#' them. The MCP server serves them as skills.
+#' @param name optional name of a recipe: its text.
+#' @return Without \code{name}, a data.frame (name, description, uri); with it, the text of its SKILL.md.
+#' @examples
+#' \dontrun{
+#' mo_recipes()
+#' cat(mo_recipes("monitoreo-disturbance-case-study"))
+#' }
+#' @export
+mo_recipes <- function(name = NULL) {
+  sk <- reticulate::import("monitoreo.skills")
+  if (is.null(name)) {
+    rows <- lapply(sk$catalog(), function(r) list(name = r$name, description = r$description, uri = r$uri))
+    return(rows_df(rows))
+  }
+  if (!(name %in% unlist(sk$names()))) stop("unknown recipe ", name, ": the recipes are ",
+                                              paste(unlist(sk$names()), collapse = ", "))
+  sk$read(paste0(sk$SCHEME, name, "/SKILL.md"))[[1]]
+}
+
 #' Regions of MonitorEO
 #'
 #' A region of the functions of MonitorEO: protected areas by WDPA ID (\code{mo_wdpa()}), ecoregions of RESOLVE 2017
