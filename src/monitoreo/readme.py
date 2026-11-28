@@ -211,6 +211,24 @@ COLUMNS_PROFILE = {
 	'sensor': 'sensor of the variable of the row',
 }
 # the columns of the CSV of the RdNBR (burn_severity with index RdNBR, a CSV with the column rdnbr_min) that differ
+COLUMNS_ANOMALIES = {
+	'reference_mean': 'mean of the same part of the year (month, 16 days; the year) in the years of the reference '
+	                  'period{u}',
+	'reference_std': 'standard deviation (sample) of those values of the reference years{u}',
+	'reference_n': 'number of reference years with a value for that part of the year',
+	'z': 'standardized anomaly: (value - reference_mean) / reference_std; empty with fewer than min_years reference '
+	     'years or without variation between them',
+	'reference': 'reference period (first/last day)',
+	'threshold': '|z| from which a step is anomalous (episodes)',
+	'min_years': 'reference years that a part of the year needs for its z',
+	'sign': 'negative (z at most -threshold) or positive (z at least threshold)',
+	'start': 'first step of the episode (YYYY-MM-DD)',
+	'end': 'last step of the episode (YYYY-MM-DD)',
+	'steps': 'consecutive steps of the episode',
+	'peak': 'most extreme z of the episode',
+	'intensity': 'sum of the z of the episode',
+	'mean_z': 'mean z of the episode',
+}
 COLUMNS_RDNBR = {
 	'class': 'severity class of Miller & Thode 2007, their Table 4 (0 unchanged; 1 low; 2 moderate; 3 high)',
 	'label': 'name of the severity class',
@@ -219,7 +237,8 @@ BANDS = dict({'value': ('Value of the variable', '{u}')}, **publish.BANDS)
 # the unit of each band in UDUNITS ({u}: that of the variable); the others are dimensionless ('1')
 BAND_UDUNITS = {'value': '{u}', 'slope': '{u} year-1', 'intercept': '{u}', 'difference': '{u}', 'reference': '{u}',
                 'other': '{u}', 'reference_median': '{u}', 'reference_mad': '{u}', 'impact': '{u}', 'impact_pct': '%',
-                'DIT_years': 'year', 'RRT_years': 'year', 'RET_years': 'year', 'recovered_pct': '%', 'n_years': '1'}
+                'DIT_years': 'year', 'RRT_years': 'year', 'RET_years': 'year', 'recovered_pct': '%', 'n_years': '1',
+                'reference_std': '{u}', 'z': '1'}
 
 
 def _now():
@@ -386,7 +405,7 @@ def text(tool, args, result, computed=None):
 	from . import report
 	result = result if isinstance(result, dict) else {}
 	given = call_args(args)
-	files = _files(result, ('file', 'yearly', 'gif', 'csv', 'chart', 'perimeter'))
+	files = _files(result, ('file', 'yearly', 'gif', 'csv', 'episodes_csv', 'chart', 'perimeter'))
 	name = os.path.basename(files[0]) if files else tool
 	title = report.item_title(tool, given, result)
 	out = [f'README of {name}', '=' * min(WIDTH, len(f'README of {name}')), '', title,
@@ -448,7 +467,7 @@ def text(tool, args, result, computed=None):
 				{**COLUMNS, **COLUMNS_AREAS, **(COLUMNS_TRANSITIONS if 'from_class' in header else {})} \
 				if tool == 'area_by_class' else \
 				dict(COLUMNS, value='mean of the map of the variable{u} over the pixels that the segment crosses') \
-				if tool == 'transect' else COLUMNS
+				if tool == 'transect' else dict(COLUMNS, **COLUMNS_ANOMALIES) if tool == 'anomalies' else COLUMNS
 			out += [_wrap(f'{c}: {columns.get(c, "")}'.rstrip(': ').format(u=u, uy=uy, zu=zu, i=_between_text(between)))
 			        for c in header]
 			out.append(_wrap('Empty cells: no data (no valid pixels or no images).'))
@@ -553,7 +572,7 @@ def document(tool, args, result, computed=None):
 		folders = result.get('folders') or {}
 		paths = [recipe_folder(d, result) for d in (folders.values() if isinstance(folders, dict) else folders)]
 		return [p for p in paths if p] or None
-	files = _files(result, ('file', 'yearly', 'gif', 'csv', 'perimeter'))
+	files = _files(result, ('file', 'yearly', 'gif', 'csv', 'episodes_csv', 'perimeter'))
 	if not files:
 		return None
 	for f in files:

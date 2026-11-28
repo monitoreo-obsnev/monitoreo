@@ -124,7 +124,8 @@ var CASES = {
 			var other = mo.spec(c.spec);
 			other.period = c.difference;
 			other.where = mo.pinWhere(s.where, s.period[0], s.period[1]);  // services.same_area
-			return mo.comparisonImage(s, other, geom).select('difference');
+			return c.z ? mo.zComparisonImage(s, other, geom).select('z') :
+				mo.comparisonImage(s, other, geom).select('difference');
 		})() : mo.image(s, geom);
 		mo.percentiles(img.clipToCollection(regions), geom, Number(mo.entryOf(s).m)).evaluate(function (st, error) {
 			done(error, st);

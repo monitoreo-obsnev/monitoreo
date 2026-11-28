@@ -1293,6 +1293,57 @@ mo_recovery_metrics <- function(region, variable = NULL, sensor = NULL, start, e
   cited(df, res)
 }
 
+#' Standardized anomalies of a variable and their episodes
+#'
+#' The z of each step of the time series of a variable over each feature of a region: its value minus the mean of the
+#' same part of the year (month, 16 days; the year) in the years of the reference period, divided by their standard
+#' deviation; and the episodes, runs of consecutive steps with |z| at or above \code{threshold} of the same sign
+#' (droughts, defoliations, unusually green years), with their start, end, steps, peak, intensity (sum of z) and mean z.
+#' @inheritParams mo_params
+#' @param step \code{"monthly"} (default), \code{"16-day"} or \code{"annual"}.
+#' @param reference optional reference period, \code{c(first, last)} inside \code{start} to \code{end} (default: the
+#'   whole period).
+#' @param threshold |z| of an anomalous step (default 1.5).
+#' @param min_years reference years that a part of the year needs for its z (default 3).
+#' @param min_coverage optional minimum coverage of the steps (see \code{mo_time_series()}).
+#' @param csv optional path of a CSV file of the steps (the episodes go to \code{<csv>_episodes.csv}).
+#' @param chart optional path of a PNG chart of the z.
+#' @return A data.frame with a row per step and feature (region, date, value, reference_mean, reference_std,
+#'   reference_n, z), with the attributes episodes (a data.frame), summary, reference, threshold, title, csv,
+#'   episodes_csv, chart, readme, references and credits.
+#' @section References: The result carries its references (with DOI): those of the variable and its data, of the
+#'   region, of Google Earth Engine and of MonitorEO.
+#' @examples
+#' \dontrun{
+#' mo_init()
+#' x <- mo_anomalies(mo_wdpa(555700945), "NDVI", "Modis", "2001-01-01", "2024-12-31", step = "annual",
+#'                   season = c("06-01", "09-30"), reference = c("2001-01-01", "2015-12-31"))
+#' attr(x, "episodes")
+#' }
+#' @export
+mo_anomalies <- function(region, variable = NULL, sensor = NULL, start, end, step = "monthly", metric = "mean",
+                         stat = "mean", reference = NULL, threshold = 1.5, min_years = 3, season = NULL,
+                         quality = NULL, scale = NULL, min_coverage = NULL, csv = NULL, chart = NULL,
+                         collection = NULL, band = NULL, where = NULL) {
+  check_data(variable, sensor, collection, NULL, band, NULL, NULL, NULL)
+  res <- services()$anomalies(region, variable, sensor, start, end, step, metric, stat,
+                              reference = if (is.null(reference)) NULL else as.list(reference),
+                              threshold = threshold, min_years = as.integer(min_years), season = season,
+                              quality = quality, scale = scale, min_coverage = min_coverage, csv = csv,
+                              chart = if (is.null(chart)) NULL else path.expand(chart), collection = collection,
+                              band = band, where = where)
+  df <- rows_df(res$rows)
+  attr(df, "episodes") <- rows_df(res$episodes)
+  attr(df, "summary") <- res$summary
+  attr(df, "reference") <- unlist(res$reference)
+  attr(df, "threshold") <- res$threshold
+  attr(df, "title") <- res$title
+  attr(df, "csv") <- res$csv
+  attr(df, "episodes_csv") <- res$episodes_csv
+  attr(df, "chart") <- res$chart
+  cited(df, res)
+}
+
 #' Images and valid observations of a variable per step
 #'
 #' How many images and valid observations a variable has over a region in each step of a period, after the pixel
@@ -2602,6 +2653,9 @@ mo_compare_series <- function(region, variable = NULL, sensor = NULL, start, end
 #'   (default: both from \code{percentiles}).
 #' @param percentiles two numbers (default \code{NULL}: \code{c(1, 99)}): the colour ramp of the difference, symmetric
 #'   around 0 up to the largest of these percentiles of its values over the region in absolute value.
+#' @param z \code{TRUE}: the standardized anomaly instead of the difference: the metric of each year of the other
+#'   period (in its season), their mean, minus the mean of those of the years of the reference period (at least 3), in
+#'   standard deviations of the reference years; no \code{temporal} with it.
 #' @return A list (url, min, max, palette, stretch: how the colour ramp was stretched, with its text, name, unit,
 #'   bounds, thumbnail, references, credits).
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
@@ -2622,13 +2676,13 @@ mo_compare_map <- function(region, variable = NULL, sensor = NULL, start, end, o
                            metric = "median", temporal = "period", season = NULL, quality = NULL, thumbnail = NULL,
                            collection = NULL, where = NULL, image = NULL, band = NULL, band_reducer = NULL,
                            band_scale = NULL, band_offset = NULL, unit = NULL, vmin = NULL, vmax = NULL,
-                           percentiles = NULL) {
+                           percentiles = NULL, z = FALSE) {
   check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, band_reducer = band_reducer)
   res <- services()$compare_map(region, variable, sensor, start, end, other_start, other_end, metric, temporal,
                                 season = season, quality = quality, thumbnail = thumbnail, collection = collection,
                                 where = where, image = image, band = band, band_reducer = band_reducer,
                                 band_scale = band_scale, band_offset = band_offset, unit = unit, vmin = vmin, vmax = vmax,
-                                percentiles = percentiles_arg(percentiles))
+                                percentiles = percentiles_arg(percentiles), z = isTRUE(z))
   answer(res)
 }
 
@@ -2642,6 +2696,8 @@ mo_compare_map <- function(region, variable = NULL, sensor = NULL, start, end, o
 #' @param percentiles two numbers (default \code{NULL}: \code{c(1, 99)}): the colour ramp of the difference,
 #'   symmetric around 0 up to the largest of these percentiles of its values in the file in absolute value.
 #' @param vmin,vmax range of the colours of the difference (default: from \code{percentiles}).
+#' @param z \code{TRUE}: the standardized anomaly (see \code{mo_compare_map()}), with the bands z, difference,
+#'   reference, reference_std and other.
 #' @return A list (file, bands, grid, resolution, native_resolution, name, unit, min, max, palette, stretch: how the
 #'   colour ramp was stretched, with its text, references, credits).
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
@@ -2663,14 +2719,15 @@ mo_download_comparison <- function(region, variable = NULL, sensor = NULL, start
                                    metric = "median", temporal = "period", season = NULL, quality = NULL,
                                    resolution = NULL, crs = "auto", collection = NULL, where = NULL, image = NULL,
                                    band = NULL, band_reducer = NULL, band_scale = NULL, band_offset = NULL,
-                                   unit = NULL, percentiles = NULL, vmin = NULL, vmax = NULL) {
+                                   unit = NULL, percentiles = NULL, vmin = NULL, vmax = NULL, z = FALSE) {
   check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, band_reducer = band_reducer)
   res <- services()$download_comparison(region, variable, sensor, start, end, other_start, other_end, metric, temporal,
                                         season = season, quality = quality, resolution = resolution, crs = crs,
                                         path = path.expand(path), collection = collection, where = where, image = image,
                                         band = band, band_reducer = band_reducer, band_scale = band_scale,
                                         band_offset = band_offset, unit = unit,
-                                        percentiles = percentiles_arg(percentiles), vmin = vmin, vmax = vmax)
+                                        percentiles = percentiles_arg(percentiles), vmin = vmin, vmax = vmax,
+                                        z = isTRUE(z))
   answer(res)
 }
 

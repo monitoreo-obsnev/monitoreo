@@ -175,6 +175,10 @@ CASES = {
 	                                 'temporal': '16-day', 'interannual': 'max', 'season': ['03-01', '10-31']}},
 	'map_difference': {'kind': 'percentiles', 'region': GUAJARES, 'difference': ['2020-01-01', '2022-12-31'],
 	                   'spec': {'ref': 21, 'period': ['2005-01-01', '2007-12-31'], 'metric': 'median'}},
+	# the standardized anomaly (z) of the summer of 2023 against the summers of 2005-2015 (compare_map with z)
+	'map_z': {'kind': 'percentiles', 'region': GUAJARES, 'difference': ['2023-01-01', '2023-12-31'], 'z': True,
+	          'spec': {'ref': 25, 'period': ['2005-01-01', '2015-12-31'], 'metric': 'mean',
+	                   'season': ['06-01', '09-30']}},
 	'trend_map_july': {'kind': 'trend_image', 'region': GUAJARES, 'step': 'monthly', 'part': 7, 'metric': 'mean',
 	                   'spec': {'ref': 25, 'period': ['2005-01-01', '2020-12-31']}},
 	'burn_severity': {'kind': 'burn', 'region': SIERRA_BERMEJA, 'after': ['2021-09-20', '2021-10-31'],
@@ -328,7 +332,8 @@ def python(c):
 		img = services._comparison(region, None, None, start, end, c['difference'][0], c['difference'][1],
 		                           args['metric'], s.get('temporal', 'period'), s.get('interannual', 'mean'),
 		                           args['season'], args['quality'], None,
-		                           {'ref': s['ref'], 'where': s.get('where')})[2].select('difference')
+		                           {'ref': s['ref'], 'where': s.get('where')},
+		                           z=bool(c.get('z')))[2].select('z' if c.get('z') else 'difference')
 	else:
 		img = variables.image(spec, geom, native).clipToCollection(regions)
 	return img.rename('value').reduceRegion(ee.Reducer.percentile(list(maps.STRETCH), ['lo', 'hi']), geom, native,

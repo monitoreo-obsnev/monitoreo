@@ -65,6 +65,10 @@ METHODS = {
 	'compare_series': 'For each part of the year, the mean of its values in the years of each period and the '
 	                  'difference between both (other period minus reference period).',
 	'compare_map': 'On each pixel, the temporal metric of the other period minus that of the reference period.',
+	'anomalies': 'For each time step, the temporal metric of its images on each pixel and, over the region, the spatial '
+	             'statistic of those values; then the standardized anomaly (z) of each step: its value minus the mean of '
+	             'the same part of the year in the years of the reference period, divided by their standard deviation; '
+	             'and the episodes, consecutive steps with |z| at or above the threshold of the same sign.',
 	'download_image': 'The temporal metric of the images of the period on each pixel, in a GeoTIFF (float32, NoData '
 	                  '-9999).',
 	'rgb_map': 'The true colour of the images of the variable: the temporal metric of their red, green and blue surface '
@@ -170,6 +174,9 @@ TABLES = {
 	'image_count': (('rows',), [('region', 'Region'), ('date', 'Date'), ('n_images', 'Images'),
 	                            ('observations', 'Valid observations per pixel'), ('coverage', 'Coverage'),
 	                            ('n_pixels', 'Valid pixels')]),
+	'anomalies': (('rows',), [('region', 'Region'), ('date', 'Date'), ('value', 'Value{u}'),
+	                           ('reference_mean', 'Reference mean{u}'), ('reference_std', 'Reference std. dev.'),
+	                           ('z', 'z')]),
 	'recovery_metrics': (('rows',), [('series', 'Series'), ('direction', 'Change'), ('S95', 'S95{u}'),
 	                                  ('impact_pct', 'Impact (%)'), ('DIT_years', 'DIT (years)'),
 	                                  ('RRT_years', 'RRT (years)'), ('RET_years', 'RET (years)'),
@@ -328,6 +335,12 @@ def item_title(tool, args, result=None):
 	"""The title in English of the result of a call."""
 	if tool == 'region_stats' and args.get('zones'):  # by bands of another variable
 		return default_title(tool, args)
+	if tool in ('compare_map', 'download_comparison') and args.get('z') and args.get('other_start'):
+		v = _var(args) if not args.get('variable') else \
+			f"{args.get('variable', '')} ({SENSORS.get(args.get('sensor'), args.get('sensor') or '')})"
+		return (f"Standardized anomaly (z) of {v}: {period_text(args['other_start'], args['other_end'])} against "
+		        f"{period_text(args['start'], args['end'])}{season_text(args.get('season'))}"
+		        + (' (GeoTIFF)' if tool == 'download_comparison' else ''))
 	if tool in TITLES:
 		v = _var(args) if not args.get('variable') else \
 			f"{args.get('variable', '')} ({SENSORS.get(args.get('sensor'), args.get('sensor') or '')})"
@@ -523,7 +536,7 @@ def item_facts(tool, args, result=None, names=None):
 	if any(warned):  # days of the period without images of its data (monitoreo.coverage)
 		facts.append(('Warnings', ' '.join(str(w) for w in warned if w)))
 	if tool in ('time_series', 'trend_table', 'compare_series', 'trend_map', 'download_trend', 'timelapse',
-	            'image_count', 'recovery_metrics') or (tool == 'area_by_class' and args.get('trend')):
+	            'image_count', 'recovery_metrics', 'anomalies') or (tool == 'area_by_class' and args.get('trend')):
 		step = args.get('step') or ('annual' if 'trend' in tool or tool in ('timelapse', 'area_by_class', 'image_count')
 		                            else 'monthly')
 		facts.append(('Step', STEPS.get(step, step)))
@@ -545,7 +558,7 @@ def item_facts(tool, args, result=None, names=None):
 		each = {'annual': 'year', 'monthly': 'month', '16-day': '16-day period'}[args['temporal']]
 		facts.append(('Temporal aggregation', f"{_stat(metric)} of each {each} and, between the years, "
 		                                       f"{_stat(args.get('interannual') or 'mean')} (interannual value)"))
-	if tool in ('time_series', 'trend_table', 'compare_series', 'recovery_metrics'):
+	if tool in ('time_series', 'trend_table', 'compare_series', 'recovery_metrics', 'anomalies'):
 		facts.append(('Spatial statistic', _stat(args.get('stat') or 'mean')))
 	ring = args.get('ring') if tool in ('time_series', 'recovery_metrics') else True if tool == 'control_ring' else None
 	if ring:
@@ -572,6 +585,16 @@ def item_facts(tool, args, result=None, names=None):
 		if summary.get('pixels'):
 			facts.append(('Pixels', f"{summary['pixels']:,} with metrics; recovered (an RRT) "
 			                        f"{100 * (summary.get('recovered_share') or 0):.0f} %"))
+	if tool == 'anomalies':
+		ref = (result or {}).get('reference') or args.get('reference') or [args.get('start'), args.get('end')]
+		facts.append(('Reference', f"{period_text(ref[0], ref[1])}: mean and standard deviation of each part of the "
+		                           f"year in its years (at least {args.get('min_years') or 3})"))
+		facts.append(('Episodes', f"consecutive steps with |z| ≥ {float(args.get('threshold') or 1.5):g} of the same "
+		                          'sign'))
+	if tool in ('compare_map', 'download_comparison') and args.get('z'):
+		facts.append(('Standardized anomaly', 'z = (the temporal metric of each year of the other period, their mean, '
+		                                      'minus the mean of those of the years of the reference period) / their '
+		                                      'standard deviation between years (sample); no value where it is 0'))
 	if tool == 'recovery_metrics':
 		facts.append(('Event', str(args.get('event'))))
 		facts.append(('Areas', f"affected {args.get('affected') or (result or {}).get('affected')}" + (

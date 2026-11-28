@@ -1175,6 +1175,39 @@ def recovery_metrics(region: dict, variable: Optional[str] = None, sensor: Optio
 
 
 @tool
+def anomalies(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None, *, start: str, end: str,
+              step: str = 'monthly', metric: str = 'mean', stat: str = 'mean', reference: Optional[List[str]] = None,
+              threshold: float = 1.5, min_years: int = 3, season: Optional[List[str]] = None,
+              quality: Optional[dict] = None, scale: Optional[float] = None, min_coverage: Optional[float] = None,
+              collection: Optional[str] = None, band: Optional[Union[str, List[str]]] = None,
+              where: Optional[list] = None):
+	"""Standardized anomalies (z) of the time series of a variable: each step against the same part of the year in the
+	years of reference ([first, last day] inside start-end; default all), and the episodes of consecutive steps with
+	|z| >= threshold of the same sign (start, end, steps, peak, intensity). CSV and PNG. Required: region, start, end."""
+	source = _source(variable, sensor, collection, None, band, None, None, None)
+	_dates(variable, sensor, source, 'anomalies', start=start, end=end)
+	_ready()
+	stem = _stem('anomalies', _data(variable, sensor, source), step, start, end)
+	res = services.anomalies(region, variable, sensor, start, end, step, metric, stat, reference=reference,
+	                         threshold=threshold, min_years=min_years, season=season, quality=quality, scale=scale,
+	                         min_coverage=min_coverage, csv=_out(stem, 'csv'), chart=_out(stem, 'png'), where=where,
+	                         **source)
+	rows = res['rows']
+	summary = {k: res.get(k) for k in ('title', 'reference', 'threshold', 'min_years', 'step', 'unit', 'scale',
+	                                    'episodes', 'summary', 'csv', 'episodes_csv', 'chart', 'readme', 'parameters',
+	                                    'references', 'credits', 'manual')}
+	summary['rows'] = rows if len(rows) <= 120 else rows[:120]
+	if len(rows) > 120:
+		summary['rows_note'] = f'the first 120 of {len(rows)} steps: all of them in the CSV'
+	_notes(summary, res)
+	out = [_text(summary)]
+	if res.get('chart'):
+		with open(res['chart'], 'rb') as f:
+			out.append(Image(data=f.read(), format='png'))
+	return out
+
+
+@tool
 def trend_table(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None, *, start: str, end: str,
                 step: str = 'annual', metric: str = 'mean', stat: str = 'mean', season: Optional[List[str]] = None,
                 quality: Optional[dict] = None, scale: Optional[float] = None, alpha: float = 0.05,
@@ -1300,21 +1333,21 @@ def compare_map(region: dict, variable: Optional[str] = None, sensor: Optional[s
                 band_reducer: Optional[str] = None, band_scale: Optional[float] = None,
                 band_offset: Optional[float] = None, unit: Optional[str] = None, where: Optional[list] = None,
                 vmin: Optional[float] = None, vmax: Optional[float] = None,
-                percentiles: Optional[List[float]] = None):
+                percentiles: Optional[List[float]] = None, z: bool = False):
 	"""Map of the difference between the variable aggregated over another period (other_start to other_end) and
-	over the reference period (start to end), e.g. the median NDVI of 2023 minus that of 2018-2021. Returns the URL
-	of its Earth Engine tiles (XYZ, valid for some hours) and a preview; percentiles (default [1, 99]) or vmin and
-	vmax: its colour ramp. Required: region, start, end, other_start and other_end, and variable and sensor or
-	collection and band."""
+	over the reference period (start to end), e.g. the median NDVI of 2023 minus that of 2018-2021; z true: in standard
+	deviations of the years of the reference (at least 3), no temporal. Returns the URL of its Earth Engine tiles (XYZ, valid for some hours) and a preview; percentiles (default
+	[1, 99]) or vmin and vmax: its colour ramp. Required: region, start, end, other_start and other_end, and variable
+	and sensor or collection and band."""
 	source = _source(variable, sensor, collection, image, band, band_scale, band_offset, unit,
 	                 band_reducer=band_reducer)
 	_dates(variable, sensor, source, 'comparisons of periods', start=start, end=end, other_start=other_start,
 	       other_end=other_end)
 	_ready()
-	thumb = _out(_stem('comparison', _data(variable, sensor, source), metric), 'png')
+	thumb = _out(_stem('anomaly' if z else 'comparison', _data(variable, sensor, source), metric), 'png')
 	res = services.compare_map(region, variable, sensor, start, end, other_start, other_end, metric, temporal,
 	                           season=season, quality=quality, thumbnail=thumb, where=where, vmin=vmin, vmax=vmax,
-	                           percentiles=percentiles, **source)
+	                           percentiles=percentiles, z=z, **source)
 	return [_text(res)] + _preview(res)
 
 
@@ -1327,9 +1360,10 @@ def download_comparison(region: dict, variable: Optional[str] = None, sensor: Op
                         band_reducer: Optional[str] = None, band_scale: Optional[float] = None,
                         band_offset: Optional[float] = None, unit: Optional[str] = None,
                         where: Optional[list] = None, percentiles: Optional[List[float]] = None,
-                        vmin: Optional[float] = None, vmax: Optional[float] = None) -> str:
+                        vmin: Optional[float] = None, vmax: Optional[float] = None, z: bool = False) -> str:
 	"""Download the comparison of two periods (see compare_map) to a GeoTIFF on this computer with the bands
-	difference (other - reference), reference and other; percentiles or vmin, vmax: its colours. For small regions.
+	difference (other - reference), reference and other (z true: also z and reference_std); percentiles or vmin, vmax:
+	its colours. For small regions.
 	Required: region, start, end,
 	other_start and other_end, and variable and sensor or collection and band."""
 	source = _source(variable, sensor, collection, image, band, band_scale, band_offset, unit,
@@ -1337,11 +1371,12 @@ def download_comparison(region: dict, variable: Optional[str] = None, sensor: Op
 	_dates(variable, sensor, source, 'comparisons of periods', start=start, end=end, other_start=other_start,
 	       other_end=other_end)
 	_ready()
-	stem = _stem('comparison', _data(variable, sensor, source), metric, start, end, other_start, other_end)
+	stem = _stem('anomaly' if z else 'comparison', _data(variable, sensor, source), metric, start, end, other_start,
+	             other_end)
 	return _text(services.download_comparison(
 		region, variable, sensor, start, end, other_start, other_end, metric, temporal, season=season,
 		quality=quality, resolution=resolution, crs=crs, path=_out(stem, 'tif'), where=where, percentiles=percentiles,
-		vmin=vmin, vmax=vmax, **source))
+		vmin=vmin, vmax=vmax, z=z, **source))
 
 
 @tool
