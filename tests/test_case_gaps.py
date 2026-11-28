@@ -88,3 +88,11 @@ def test_a_cloudy_day_does_not_end_a_daily_episode():
 	        for k, z in enumerate([2.0, None, 2.5, 2.1, None, None, None, 1.8])]
 	eps = anomalies._episodes(rows, 1.5, 'daily')
 	assert [(e['start'], e['steps']) for e in eps] == [('2022-07-01', 3), ('2022-07-08', 1)]  # 3 cloudy days end it
+
+
+def test_every_recipe_of_the_package_is_valid():
+	# a SKILL.md that does not parse (e.g. ': ' in an unquoted description) leaves the catalog without saying so
+	import os
+	from monitoreo import skills
+	folders = {d for d in os.listdir(skills.FOLDER) if os.path.isfile(os.path.join(skills.FOLDER, d, 'SKILL.md'))}
+	assert {r['name'] for r in skills.catalog()} == folders
