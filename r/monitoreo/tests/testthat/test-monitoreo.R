@@ -42,6 +42,13 @@ test_that("catalog and regions", {
   expect_equal(mo_country("esp"), list(country = list("ESP")))
   expect_equal(mo_admin(141938, level = 2), list(admin2 = list(141938L)))
   expect_equal(mo_island(2.9, 39.6)$island_at, list(2.9, 39.6))
+  expect_equal(mo_ems("EMSR375", product = "grading"), list(ems = "EMSR375", product = "grading"))
+  expect_equal(mo_effis(c(17545, 18345)), list(effis_id = list(17545L, 18345L)))
+  expect_equal(mo_wfs("https://si.icnf.pt/wfs/areas_ardidas", "BDG:ardida_2022", cql_filter = "AreaHaSIG > 10000"),
+               list(wfs = "https://si.icnf.pt/wfs/areas_ardidas", layer = "BDG:ardida_2022",
+                    cql_filter = "AreaHaSIG > 10000"))
+  expect_equal(mo_url("https://example.org/fires.zip", dissolve = TRUE),
+               list(url = "https://example.org/fires.zip", dissolve = TRUE))
   expect_equal(mo_sea(3324), list(sea = list(3324L)))  # a sea of the IHO, by its MRGID or its name
   expect_equal(mo_sea(c("Alboran Sea", "Ligurian Sea")), list(sea = list("Alboran Sea", "Ligurian Sea")))
   expect_equal(mo_sea(lon = -2.5, lat = 36), list(sea_at = list(-2.5, 36)))

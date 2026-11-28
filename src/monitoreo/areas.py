@@ -1,7 +1,7 @@
 """Regions of interest: GeoJSON, vector files, protected areas (WDPA, also its Ramsar sites), ecoregions and biomes
 (RESOLVE Ecoregions 2017), administrative units (countries, their first and second levels: FAO GAUL 2025), islands
 (Global Islands, Sayre et al. 2019), oceans and seas (the sea areas of the IHO, of Marine Regions: monitoreo.seas),
-boxes and points, as Earth Engine feature collections with a 'name' property per feature. Any region takes "within",
+boxes and points, official perimeters (Copernicus EMS, EFFIS, WFS, files on the web: monitoreo.perimeters), as Earth Engine feature collections with a 'name' property per feature. Any region takes "within",
 another region: only the part of each feature inside it is kept, e.g. the
 Mediterranean biome in Spain, {'biome_id': 12, 'within': {'country': 'ESP'}}.
 
@@ -55,7 +55,8 @@ GAUL_FIELDS = {1: ['GAUL0_NAME', 'GAUL1_CODE', 'GAUL1_NAME', 'ISO3_CODE', 'DISP_
                2: ['GAUL0_NAME', 'GAUL1_NAME', 'GAUL2_CODE', 'GAUL2_NAME', 'ISO3_CODE', 'DISP_EN']}
 ISLANDS = 'projects/sat-io/open-datasets/shoreline/big_islands'  # Global Islands of more than 1 km² (Sayre et al.)
 REGION_KEYS = ('geojson', 'file', 'wdpa_id', 'wdpa_name', 'ecoregion_id', 'ecoregion_at', 'biome_id', 'biome_at',
-               'country', 'admin1', 'admin2', 'admin3', 'island_at', 'sea', 'sea_at', 'bbox', 'point')
+               'country', 'admin1', 'admin2', 'admin3', 'island_at', 'sea', 'sea_at', 'bbox', 'point', 'ems',
+               'effis_id', 'wfs', 'url')
 WDPA_MAX_ERROR = 10  # metres: simplification of the protected areas fetched from WDPA (one pixel of Sentinel-2)
 # A biome is the union of its ecoregions (those of the table of classes of BIOME, catalog.ecoregions_of_biome, so that
 # Rock and Ice, 99, is one too), dissolved with a tolerance of BIOME_MAX_ERROR metres, as a country
@@ -397,6 +398,14 @@ def region(spec):
 	  sea_at         [lon, lat]: the sea area of the IHO at that point (none on land)
 	  bbox           [west, south, east, north] in degrees
 	  point          [lon, lat], with buffer (metres, default 0)
+	  ems            code of a rapid mapping activation of Copernicus EMS (e.g. 'EMSR375'): the observed event (burnt
+	                 area...) of each of its AOIs, from its grading product or its last delineation; aoi, product
+	                 ('delineation' or 'grading') and monitoring (its number) optional (see monitoreo.perimeters)
+	  effis_id       id of a burnt area of EFFIS, or a list of them (see find_burnt_areas)
+	  wfs            address of a Web Feature Service, with layer (its typeName); cql_filter (on the server), filter
+	                 (an OGR SQL condition), name_field and dissolve optional, e.g. the burnt areas of ICNF
+	  url            address of a vector file on the web (GeoJSON, GeoPackage, KML, zipped shapefile...); layer,
+	                 filter, name_field and dissolve optional, e.g. the fire perimeters of REDIAM
 	and, with any of them, within: another region (with an area); only the part of each feature inside its union is
 	kept (with a tolerance of WITHIN_MAX_ERROR m), and the features outside it are left out, e.g. the Mediterranean
 	biome in Spain: {'biome_id': 12, 'within': {'country': 'ESP'}}. A whole biome spans continents: within cuts it, and
@@ -437,6 +446,9 @@ def check(spec, what='region'):
 		seas.codes(spec[k])
 	if k == 'sea_at':
 		_point(spec[k], k)
+	if k in ('ems', 'effis_id', 'wfs', 'url'):
+		from . import perimeters
+		perimeters.check(k, spec)
 	if spec.get('within') is not None:
 		check(spec['within'], 'within')
 	return k
@@ -559,6 +571,10 @@ def _of(k, v, spec, inside):
 		if k == 'sea':
 			return _seas(fc, seas.codes(v))
 		return fc.filterBounds(ee.Geometry.Point(_point(v, k)))
+	if k in ('ems', 'effis_id', 'wfs', 'url'):  # official perimeters, downloaded (monitoreo.perimeters)
+		from . import perimeters
+		return ee.FeatureCollection([ee.Feature(ee.Geometry(f['geometry'], opt_geodesic=False), {'name': f['name']})
+		                             for f in perimeters.features(k, spec)])
 	if k == 'bbox':
 		return ee.FeatureCollection([ee.Feature(ee.Geometry.Rectangle(list(v), None, False), {'name': 'bbox'})])
 	geom = ee.Geometry.Point(list(v))

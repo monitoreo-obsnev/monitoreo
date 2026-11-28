@@ -22,7 +22,7 @@ import os
 import re
 import urllib.request
 
-from . import __version__, areas, assets, catalog, fire, references, sensors, services
+from . import __version__, areas, assets, catalog, fire, perimeters, references, sensors, services
 from . import variable as variables
 from .publish import MONTHS, PARTS, SENSORS, STEPS, _colours, _var, burn_index, data_unit, default_title, \
 	fire_variable, is_static, period_text, python_call, season_text, slug, unit_text
@@ -990,6 +990,8 @@ def _region_text(region, names):
 		if not region.get('buffer'):
 			return f'Pixel at {where} (lat., lon.)'
 		return f"Circle of {_num(region['buffer'])} m radius at {where} (lat., lon.)"
+	if any(region.get(k) is not None for k in perimeters.KEYS):  # official perimeters (EMS, EFFIS, WFS, the web)
+		return perimeters.text(region)
 	if 'file' in region:
 		return names.get(str(region['file'])) or f"File {os.path.basename(str(region['file']))}"
 	if 'geojson' in region:

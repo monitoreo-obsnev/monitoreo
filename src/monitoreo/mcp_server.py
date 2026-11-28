@@ -36,7 +36,7 @@ except ImportError:
 	from mcp.server.fastmcp.exceptions import ToolError
 
 from . import about as about_
-from . import assets, publish, services
+from . import assets, publish, references, services
 from . import variable as variables
 
 OUTPUT = os.path.expanduser(os.environ.get('MONITOREO_OUTPUT') or '~/MonitorEO')
@@ -214,7 +214,14 @@ of Spain, with the code of the INE that find_admin_units gives with level 3), {"
 island at a point), {"sea": 3324} or {"sea": "Alboran Sea"} (an ocean or sea: a sea area of the IHO of Marine Regions,
 by the MRGID or the name that find_seas gives, or a list of them), {"sea_at": [lon, lat]} (the sea at a point),
 {"bbox": [west, south, east, north]}, {"point": [lon, lat], "buffer": metres},
-{"geojson": <GeoJSON geometry, Feature or FeatureCollection>} or {"file": "<path of a vector file>"}. Several
+{"geojson": <GeoJSON geometry, Feature or FeatureCollection>} or {"file": "<path of a vector file>"}. Official
+perimeters are regions too, downloaded once: {"ems": "EMSR375"} (the observed event, e.g. the burnt area, of each area
+of interest of a rapid mapping activation of Copernicus EMS, from its grading or its last delineation; "aoi", "product"
+("delineation" or "grading") and "monitoring" choose others), {"effis_id": 17545} (a burnt area of EFFIS, 2000 to
+today: find_burnt_areas finds them in a region or country), {"wfs": URL, "layer": typeName} (a layer of a Web Feature
+Service, e.g. the burnt areas of ICNF, https://si.icnf.pt/wfs/areas_ardidas, layer "BDG:ardida_2022"; "cql_filter"
+for the server, "filter" an OGR SQL condition, "name_field", "dissolve") or {"url": URL} (a vector file on the web:
+GeoJSON, GeoPackage, KML, zipped shapefile; "layer", "filter", "name_field", "dissolve"). Several
 features give one series per feature. Any region takes "within", another region (with an area): only the part of each
 feature inside it, e.g. the Mediterranean biome in Spain, {"biome_id": 12, "within": {"country": "ESP"}}, or a
 protected area in a province. A whole biome spans continents (its statistics and grids are in EPSG:6933, equal area,
@@ -630,6 +637,22 @@ def find_admin_units(text: str, level: int = 1, country: Optional[str] = None, l
 	if int(level) != 3:  # the municipalities of Spain are found without Earth Engine
 		_ready()
 	return _text(services.find_admin_units(text, level, country, limit))
+
+
+@tool
+def find_burnt_areas(region: Optional[dict] = None, country: Optional[str] = None, start: Optional[str] = None,
+                     end: Optional[str] = None, min_area_ha: Optional[float] = None, limit: int = 20) -> str:
+	"""Burnt areas of the European Forest Fire Information System (EFFIS, 2000 to today) that touch REGION, or in
+	COUNTRY (two-letter code, e.g. "ES", "PT"), which began between START and END (YYYY-MM-DD) and burnt at least
+	MIN_AREA_HA hectares, the largest first: effis_id, firedate, finaldate, area_ha, province, commune and the region to
+	use, {"effis_id": ID}, its official perimeter. Cite EFFIS with the references of the result."""
+	if region is not None and not (isinstance(region, dict) and region.get('bbox') is not None
+	                              and region.get('within') is None):  # a country, a bbox: without Earth Engine
+		_ready()
+	rows = services.find_burnt_areas(region, country, start, end, min_area_ha, limit)
+	cited = references.cite('find_burnt_areas', {'region': region})
+	return _text({'burnt_areas': rows, 'references': [r['text'] for r in cited['references']],
+	              'credits': cited['credits']})
 
 
 @tool
