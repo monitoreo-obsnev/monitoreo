@@ -1021,7 +1021,7 @@ def test_fix_links(monkeypatch):
 	# downloaded
 	from monitoreo import manual
 	secs = [{'name': 'Conceptos', 'url': assistant.WIKI + 'Conceptos#variables'}]
-	monkeypatch.setattr(manual, 'sections', lambda folder=None: secs)
+	monkeypatch.setattr(manual, 'sections', lambda folder=None, recipes=None: secs)
 	monkeypatch.setattr(manual, 'search', lambda q, k=3, lang=None: [{'url': assistant.WIKI + 'Conceptos#variables'}])
 	text = (f'See {assistant.WIKI}QGIS-plugin, {assistant.WIKI}Python and {assistant.WIKI}Made-up-page. And '
 	        f'{assistant.WIKI}Conceptos#nothing.')
