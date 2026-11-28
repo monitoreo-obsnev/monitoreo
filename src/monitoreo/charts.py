@@ -506,3 +506,28 @@ def anomalies_png(rows, threshold, path=None, title=None, dpi=150, source=None, 
 		fig.suptitle(title, fontsize=11)
 	fig.tight_layout(rect=(0, _with_source(fig, source), 1, 1))
 	return _png(fig, path)
+
+
+def recovery_pairs_png(pairs, event, path=None, title=None, ylabel=None, dpi=150, source=None):
+	"""PNG (bytes) of the recovery of several pairs (recovery_metrics with pairs): the deseasonalized difference
+	affected - control of each pair (PAIRS: [(label, metrics of the difference, with its '_series')]), a line each, and
+	the date of the EVENT. Written to PATH if given."""
+	from matplotlib.figure import Figure
+
+	fig = Figure(figsize=(10, 4.8), dpi=dpi)
+	ax = fig.subplots()
+	for label, m in pairs:
+		s = (m or {}).get('_series') or {}
+		values = s.get('deseasonalized') if s.get('deseasonalized') is not None else s.get('values')
+		if s.get('dates') and values is not None:
+			ax.plot(s['dates'], values, lw=1.1, label=label)
+	ax.axhline(0, color='#bbbbbb', lw=0.8)
+	ax.axvline(event, color='black', lw=1.5)
+	ax.set_ylabel(f'difference, {ylabel}' if ylabel else 'difference')
+	if title:
+		ax.set_title(title, fontsize=11)
+	if len(pairs) <= 12:
+		ax.legend(fontsize=7, ncol=3, loc='lower left', frameon=False)
+	ax.grid(alpha=0.3)
+	fig.tight_layout(rect=(0, _with_source(fig, source), 1, 1))
+	return _png(fig, path)

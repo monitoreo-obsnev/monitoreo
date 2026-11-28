@@ -130,6 +130,54 @@ def test_the_service(monkeypatch, tmp_path):
 		                          affected='burned', control='burned')
 
 
+def test_pairs_the_baci_of_several_affected_areas(monkeypatch, tmp_path):
+	"""Several fenced plots (or treated stands) and their controls in one call: the three series of each pair."""
+	event = dt.date(2018, 6, 1)
+
+	def plot(gain):
+		def f(i):
+			d = dt.date(2014 + i // 12, i % 12 + 1, 1)
+			return 0.3 + (gain if d >= event else 0) + _season(i)
+		return f
+	rows = []
+	for name, f in (('fence1', plot(0.2)), ('around1', plot(0)), ('fence2', plot(0.05)), ('around2', plot(0))):
+		rows += [dict(r, region=name, n_pixels=10, n_images=2) for r in _monthly(2014, 10, f)]
+	monkeypatch.setattr(timeseries, 'series', lambda *a, **k: (rows, 10))
+	monkeypatch.setattr(services.areas, 'region', lambda r: None)
+	res = services.recovery_metrics({'file': 'plots.gpkg'}, 'MSAVI2', 'Sentinel-2', '2014-01-01', '2023-12-31',
+	                                event=str(event), pairs=[['fence1', 'around1'], {'affected': 'fence2',
+	                                                                                 'control': 'around2'}],
+	                                csv=str(tmp_path / 'pairs.csv'), chart=str(tmp_path / 'pairs.png'))
+	assert [r['region'] for r in res['rows']] == ['fence1', 'around1', 'fence1 - around1', 'fence2', 'around2',
+	                                              'fence2 - around2']
+	assert set(res['metrics']) == {'fence1 | around1', 'fence2 | around2'} and len(res['pairs']) == 2
+	assert res['rows'][2]['direction'] == 'increase' and res['affected'] == ['fence1', 'fence2']
+	assert os.path.exists(res['csv']) and (res['chart'] is None or os.path.exists(res['chart']))
+	facts = dict(report.item_facts('recovery_metrics', {'region': {'file': 'plots.gpkg'}, 'variable': 'MSAVI2',
+	                                                    'sensor': 'Sentinel-2', 'start': '2014-01-01',
+	                                                    'end': '2023-12-31', 'event': str(event),
+	                                                    'pairs': [['fence1', 'around1'], ['fence2', 'around2']]}, {}))
+	assert facts['Areas'].startswith('2 pairs') and 'fence2 and around2' in facts['Areas']
+	for bad, message in (([['fence1', 'fence1']], 'two features'), ([['fence1']], r'each pair is \[affected'),
+	                     ([], 'a list of'), ([['fence1', 'around1'], ['fence1', 'around1']], 'repeated')):
+		with pytest.raises(ValueError, match=message):
+			services.recovery_metrics({'file': 'plots.gpkg'}, 'MSAVI2', 'Sentinel-2', '2014-01-01', '2023-12-31',
+			                          event=str(event), pairs=bad)
+	with pytest.raises(ValueError, match='give no affected, control nor ring'):
+		services.recovery_metrics({'file': 'plots.gpkg'}, 'MSAVI2', 'Sentinel-2', '2014-01-01', '2023-12-31',
+		                          event=str(event), pairs=[['fence1', 'around1']], ring=True)
+	twice = rows + [dict(r, region='around1') for r in rows if r['region'] == 'around2']
+	monkeypatch.setattr(timeseries, 'series', lambda *a, **k: (twice, 10))
+	with pytest.raises(ValueError, match='several features named around1'):
+		services.recovery_metrics({'file': 'plots.gpkg'}, 'MSAVI2', 'Sentinel-2', '2014-01-01', '2023-12-31',
+		                          event=str(event), pairs=[['fence1', 'around1']])
+	monkeypatch.setattr(timeseries, 'series', lambda *a, **k: (rows, 10))
+	assert [k for k, _ in report.TABLES['recovery_metrics'][1]][:2] == ['series', 'region']
+	with pytest.raises(ValueError, match='fence9 is not a feature'):
+		services.recovery_metrics({'file': 'plots.gpkg'}, 'MSAVI2', 'Sentinel-2', '2014-01-01', '2023-12-31',
+		                          event=str(event), pairs=[['fence9', 'around1']])
+
+
 def test_readme_report_and_command_line(capsys):
 	assert 'S95' in readme.COLUMNS and 'recovery_metrics' in report.METHODS and 'recovery_metrics' in references.EARTH_ENGINE
 	args = {'region': {'wdpa_id': 1}, 'variable': 'NDVI', 'sensor': 'Landsat', 'start': '1995-01-01',
@@ -139,7 +187,7 @@ def test_readme_report_and_command_line(capsys):
 	with pytest.raises(SystemExit):
 		cli.main(['recovery', '--help'])
 	text = ' '.join(capsys.readouterr().out.split())
-	assert '--event' in text and '--control' in text and '--reference-years' in text
+	assert '--event' in text and '--control' in text and '--reference-years' in text and '--pairs' in text
 
 
 ZONES = '/Users/javier/Downloads/Claude/everest/resultados/sierra_nevada/zonas.gpkg'

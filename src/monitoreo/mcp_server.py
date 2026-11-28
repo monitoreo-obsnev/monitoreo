@@ -1140,7 +1140,8 @@ def recovery_metrics(region: dict, variable: Optional[str] = None, sensor: Optio
                      season: Optional[List[str]] = None, quality: Optional[dict] = None, scale: Optional[float] = None,
                      reference_years: int = 3, equilibrium: float = 0.05, min_coverage: Optional[float] = None,
                      collection: Optional[str] = None, band: Optional[Union[str, List[str]]] = None,
-                     where: Optional[list] = None, ring: Optional[Union[bool, dict]] = None):
+                     where: Optional[list] = None, ring: Optional[Union[bool, dict]] = None,
+                     pairs: Optional[List[List[str]]] = None):
 	"""Severity and recovery after a disturbance (fire, frost, avalanche, harvest, pest) on the date event, with the
 	metrics of the post-fire trajectories of Marcos et al. (2023): the time series of the variable over the region from
 	start to end (step "monthly" is the best; start at least reference_years before the event), decomposed with a robust
@@ -1152,8 +1153,9 @@ def recovery_metrics(region: dict, variable: Optional[str] = None, sensor: Optio
 	affected and control are their names (e.g. {"file": "zones.gpkg", "name_field": "region"}); then also the control
 	and the difference affected - control (BACI), which removes the climate of the region. Or ring true (or its options,
 	see control_ring) with the affected area alone as the region: the control is then a ring around it, its pixels
-	matched by elevation. Writes a CSV of the metrics and a PNG chart of the trajectories. Required: region, start, end,
-	event, and variable and sensor."""
+	matched by elevation. pairs: several [affected, control], a BACI each (fenced plots, treated stands). Writes a
+	CSV of the metrics and a PNG chart of the trajectories. Required: region, start, end, event, and variable and
+	sensor."""
 	source = _source(variable, sensor, collection, None, band, None, None, None)
 	_dates(variable, sensor, source, 'recovery metrics', start=start, end=end)
 	_ready()
@@ -1162,10 +1164,12 @@ def recovery_metrics(region: dict, variable: Optional[str] = None, sensor: Optio
 	                                quality=quality, scale=scale, affected=affected, control=control,
 	                                reference_years=reference_years, equilibrium=equilibrium,
 	                                min_coverage=min_coverage, csv=_out(stem, 'csv'), chart=_out(stem, 'png'),
-	                                where=where, ring=ring, **source)
+	                                where=where, ring=ring, pairs=pairs, **source)
 	summary = {k: res.get(k) for k in ('title', 'event', 'affected', 'control', 'reference_years', 'equilibrium', 'unit',
 	                                    'scale', 'rows', 'metrics', 'csv', 'chart', 'readme', 'parameters', 'references',
 	                                    'credits', 'manual', 'ring')}
+	if pairs:  # many pairs: the table has them all; the metrics of each, in the CSV and the rows
+		summary.pop('metrics', None)
 	_notes(summary, res)
 	out = [_text(summary)]
 	if res.get('chart'):

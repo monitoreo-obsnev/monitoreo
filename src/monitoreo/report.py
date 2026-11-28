@@ -177,7 +177,7 @@ TABLES = {
 	'anomalies': (('rows',), [('region', 'Region'), ('date', 'Date'), ('value', 'Value{u}'),
 	                           ('reference_mean', 'Reference mean{u}'), ('reference_std', 'Reference std. dev.'),
 	                           ('z', 'z')]),
-	'recovery_metrics': (('rows',), [('series', 'Series'), ('direction', 'Change'), ('S95', 'S95{u}'),
+	'recovery_metrics': (('rows',), [('series', 'Series'), ('region', 'Region'), ('direction', 'Change'), ('S95', 'S95{u}'),
 	                                  ('impact_pct', 'Impact (%)'), ('DIT_years', 'DIT (years)'),
 	                                  ('RRT_years', 'RRT (years)'), ('RET_years', 'RET (years)'),
 	                                  ('recovered_pct', 'Recovered (%)')]),
@@ -597,8 +597,13 @@ def item_facts(tool, args, result=None, names=None):
 		                                      'standard deviation between years (sample); no value where it is 0'))
 	if tool == 'recovery_metrics':
 		facts.append(('Event', str(args.get('event'))))
-		facts.append(('Areas', f"affected {args.get('affected') or (result or {}).get('affected')}" + (
-			f", control {args.get('control')} (and their difference)" if args.get('control') else '')))
+		if args.get('pairs'):
+			pairs = [p if isinstance(p, (list, tuple)) else (p.get('affected'), p.get('control')) for p in args['pairs']]
+			facts.append(('Areas', f"{len(pairs)} pairs, affected and control (and their difference): "
+			                       + '; '.join(f'{a} and {c}' for a, c in pairs)))
+		else:
+			facts.append(('Areas', f"affected {args.get('affected') or (result or {}).get('affected')}" + (
+				f", control {args.get('control')} (and their difference)" if args.get('control') else '')))
 		facts.append(('Reference', f"median ± MAD of the deseasonalized series in the {args.get('reference_years') or 3} "
 		                           'years before the event'))
 		facts.append(('Equilibrium', f"yearly medians that change less than {float(args.get('equilibrium') or 0.05):.0%} "
