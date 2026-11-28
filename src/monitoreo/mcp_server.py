@@ -1254,12 +1254,12 @@ def trend_table(region: dict, variable: Optional[str] = None, sensor: Optional[s
                 test: str = 'mk', collection: Optional[str] = None, image: Optional[str] = None,
                 band: Optional[Union[str, List[str]]] = None, band_reducer: Optional[str] = None,
                 band_scale: Optional[float] = None, band_offset: Optional[float] = None, unit: Optional[str] = None,
-                where: Optional[list] = None, min_coverage: Optional[float] = None):
+                where: Optional[list] = None, min_coverage: Optional[float] = None, deseasonalize: bool = False):
 	"""Seasonal trends of a variable over each feature of a region:
-	for each part of the year (step 'monthly': each month; '16-day': 23 parts of 16 days from 1 January; 'annual':
-	the year), the spatial STAT of the METRIC of its images in each year, and the trend of those yearly values:
-	Mann-Kendall tau, Z and p-value (significant if p < alpha) and Sen's slope (change per year). Use 8 or more
-	years. test: 'mk', 'hamed-rao' or 'tfpw' (autocorrelation). Writes a CSV and a chart of the yearly values with their Sen lines, and returns the chart. Required:
+	for each part of the year (step 'monthly', '16-day' or 'annual'), the spatial STAT of the METRIC of its images in
+	each year, and their trend: Mann-Kendall tau, Z and p-value (significant if p < alpha) and Sen's slope (per year).
+	Use 8 or more years. test: 'mk', 'hamed-rao' or 'tfpw' (autocorrelated). deseasonalize (annual): each year from
+	its monthly anomalies, so the months with more clear images (summer) do not weigh more. CSV and chart. Required:
 	region, start and end, and variable and sensor or collection and band."""
 	source = _source(variable, sensor, collection, image, band, band_scale, band_offset, unit,
 	                 band_reducer=band_reducer)
@@ -1268,7 +1268,8 @@ def trend_table(region: dict, variable: Optional[str] = None, sensor: Optional[s
 	stem = _stem('trend', _data(variable, sensor, source), step, start, end, _test_stem(test))
 	res = services.trend_table(region, variable, sensor, start, end, step, metric, stat, season=season,
 	                           quality=quality, scale=scale, alpha=alpha, test=test, csv=_out(stem, 'csv'),
-	                           chart=_out(stem, 'png'), where=where, min_coverage=min_coverage, **source)
+	                           chart=_out(stem, 'png'), where=where, min_coverage=min_coverage,
+	                           deseasonalize=deseasonalize, **source)
 	summary = {k: res.get(k) for k in ('title', 'unit', 'ylabel', 'scale', 'csv', 'chart')}
 	summary['slope_unit'] = f"{res['unit']} / year" if res.get('unit') else 'per year'  # data without a unit
 	summary['trends'] = res['rows']

@@ -292,8 +292,9 @@ def specs(var, defaults=None, two_periods=False):
 		metrics = metrics if isinstance(metrics, list) else [metrics]
 		for m in metrics + ([base['interannual']] if base['temporal'] != 'period' else []):
 			composite.check_metric(m)
-		only = e.get('metric')  # the only metric of a variable (the SCF, a frequency, is the mean of its images)
-		if only and any(str(m).strip().lower() != only for m in metrics):
+		only = e.get('metric')  # the only metric of a variable (the SCF, a frequency, is the mean of its images); count,
+		# the valid observations of its images, is for every variable (image_count)
+		if only and any(str(m).strip().lower() not in (only, 'count') for m in metrics):
 			why = e.get('notes', {}).get('metric')
 			raise ValueError(f"{e['index']} ({e['sensor']}) only takes the metric '{only}'{f': {why}' if why else ''}. "
 			                 f"Use metric '{only}' (the metric between years, interannual, can be any)")

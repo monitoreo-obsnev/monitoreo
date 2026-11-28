@@ -61,6 +61,31 @@ def auto_scale(spec, regions):
 	return areas.default_scale(variable.native_scale(spec), areas.max_area(regions), TARGET_PIXELS)
 
 
+# MODIS: its products are on the sinusoidal grid of NASA (SR-ORG:6974), of pixels of these sizes (their nominal 250,
+# 500 and 1000 m) from the corner (-20015109.354, 10007554.677): at the resolution of the data, the statistics are
+# computed on that grid (see native_grid), each pixel once, not on pixels of 1000 m of the UTM zone, each of them the
+# MODIS pixel of its centre (2-3 per MODIS pixel, some from outside the region: the 1-km cells of a land cover mixed
+# their neighbours)
+MODIS_CRS = 'SR-ORG:6974'
+MODIS_PIXEL = {250: 231.656358263958, 500: 463.312716527917, 1000: 926.625433055833}
+MODIS_ORIGIN = (-20015109.354, 10007554.677)
+
+
+def native_grid(spec, scale):
+	"""(crs, crs_transform) of the grid of the MODIS product of SPEC (a variable of the catalog of Modis) when SCALE is
+	its resolution (see MODIS_PIXEL), or None (other data, or a coarser scale: the UTM grid of region_crs)."""
+	if variable.kind(spec) != 'catalog':
+		return None
+	e = variable.entry_of(spec)
+	if e.get('sensor') != 'Modis' or not str(e.get('col', '')).startswith('MODIS/'):
+		return None
+	m = float(e['m'])  # the nominal size (250, 500, 1000) or the real one (463) of the catalog
+	pixel = next((p for k, p in MODIS_PIXEL.items() if abs(m - k) < 1e-6 or abs(m - p) < 1), None)
+	if pixel is None or scale is None or abs(float(scale) - m) > 1e-6:
+		return None
+	return MODIS_CRS, [pixel, 0, MODIS_ORIGIN[0], 0, -pixel, MODIS_ORIGIN[1]]
+
+
 def region_crs(regions):
 	"""The CRS of the statistics of REGIONS, on square pixels: WGS 84 / UTM zone of their centre or, for regions too
 	wide for one (a whole biome), an equal-area CRS in metres (areas.auto_crs)."""
@@ -104,6 +129,8 @@ def table(spec, regions, step='monthly', metric='mean', stat='mean', scale=None,
 	geom = regions.geometry()
 	scale = scale or auto_scale(spec, regions)
 	crs = crs or region_crs(regions)
+	native = native_grid(spec, scale)  # MODIS at its resolution: on its own grid
+	grid = {'crs': native[0], 'crsTransform': native[1]} if native else {'scale': scale, 'crs': crs}
 	col = variable.collection(spec, geom, scale)
 	composite.check_metric(metric)
 	composite.check_step(metric, step)  # the snow melt-out day: one per year
@@ -126,12 +153,12 @@ def table(spec, regions, step='monthly', metric='mean', stat='mean', scale=None,
 			f = ee.Feature(f)
 			# with the reducer of the steps, which counts the pixels as they do (with mean or median, also those that
 			# the region only touches): with count alone, the region would have fewer pixels than its steps
-			n = total.reduceRegion(sred, f.geometry(), scale, crs, maxPixels=1e13,
+			n = total.reduceRegion(sred, f.geometry(), **grid, maxPixels=1e13,
 			                       tileScale=tile_scale).get('total' if only_count else 'total_count')
 			return f.set('total_count', ee.Algorithms.If(n, n, 0))
 
 		regions = regions.map(with_total)
-	stats = img.reduceRegions(collection=regions, reducer=sred, scale=scale, crs=crs, tileScale=tile_scale)
+	stats = img.reduceRegions(collection=regions, reducer=sred, **grid, tileScale=tile_scale)
 	prefix = [f'{band}_' if len(bands) > 1 else '' for band in bands]  # a single band keeps the names of the outputs
 	# the output count of each step: with the reducer count alone over several bands, the name of its band (s0, s1...)
 	counted = [band if only_count and len(bands) > 1 else p + 'count' for band, p in zip(bands, prefix)]

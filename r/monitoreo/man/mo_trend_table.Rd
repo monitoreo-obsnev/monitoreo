@@ -28,7 +28,8 @@ mo_trend_table(
   band_scale = NULL,
   band_offset = NULL,
   unit = NULL,
-  min_coverage = NULL
+  min_coverage = NULL,
+  deseasonalize = FALSE
 )
 }
 \arguments{
@@ -149,6 +150,9 @@ catalog have their own, and the slope or the aspect of \code{terrain} (in the fu
 
 \item{min_coverage}{the smallest fraction of the pixels of the region with a valid value for a step to have a value,
 e.g. 0.5 (the others have none, and the rows get their coverage); default none.}
+
+\item{deseasonalize}{with \code{step = "annual"}: each year from its monthly anomalies, every month weighing the
+same (not the mean of its images, which weighs more the months with more clear images, as the summer LST).}
 }
 \value{
 A data.frame (region, key, label, n, tau, z, p_value, significant, slope (per year), intercept, first_year,

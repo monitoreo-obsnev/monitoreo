@@ -37,7 +37,7 @@
                                                      variation, %) and percentiles; also the fixed layers; of a
                                                      categorical layer (ECOREGION, BIOME), the majority class (mode)
     monitoreo trend VARIABLE --sensor S --region JSON --start D --end D [--step annual|monthly|16-day]
-                    [--test mk|hamed-rao|tfpw] [--csv F]
+                    [--test mk|hamed-rao|tfpw] [--deseasonalize] [--csv F]
                                                      seasonal trends (Mann-Kendall and Sen) of each part of the year
     monitoreo anomalies VARIABLE --sensor S --region JSON --start D --end D [--reference D D] [--threshold Z]
                                                      standardized anomalies (z) and their episodes
@@ -596,7 +596,7 @@ def main(argv=None):
 	p.add_argument('--threshold', type=float, default=1.5, help='|z| of an anomalous step (default 1.5)')
 	p.add_argument('--season', nargs=2, metavar=('MM-DD', 'MM-DD'), help='only these days of each year, e.g. 06-01 09-30')
 	p.add_argument('--min-years', type=int, default=3, help='reference years that a part of the year needs (default 3)')
-	p.add_argument('--step', default='monthly', choices=('monthly', '16-day', 'annual'))
+	p.add_argument('--step', default='monthly', choices=('daily', 'monthly', '16-day', 'annual'))
 	p.add_argument('--metric', default='mean', help=METRIC_HELP + ' (default: mean)')
 	p.add_argument('--stat', default='mean', help=STAT_HELP + ' (default: mean)')
 	p.add_argument('--min-coverage', type=float, metavar='FRACTION', help=MIN_COVERAGE_HELP)
@@ -712,6 +712,9 @@ def main(argv=None):
 		p.add_argument('--stat', default='mean', help=STAT_HELP + ' (default: mean)')
 		if name == 'trend':
 			p.add_argument('--test', default='mk', choices=TREND_TESTS, help=TEST_HELP)
+			p.add_argument('--deseasonalize', action='store_true',
+			               help='with --step annual: each year from its monthly anomalies, every month weighing the same '
+			                    '(not the mean of its images, which weighs more the months with more clear images)')
 		p.add_argument('--min-coverage', type=float, metavar='FRACTION', help=MIN_COVERAGE_HELP)
 		p.add_argument('--scale', type=float)
 		p.add_argument('--csv')
@@ -1534,7 +1537,7 @@ def _trend_or_compare(args, services):
 		            scale=args.scale, csv=args.csv, chart=args.png, progress=progress, where=_where(args),
 		            min_coverage=args.min_coverage)
 		if args.cmd == 'trend':
-			res = services.trend_table(region, test=args.test, **same)
+			res = services.trend_table(region, test=args.test, deseasonalize=args.deseasonalize, **same)
 		else:
 			res = services.compare_series(region, other_start=args.other_start, other_end=args.other_end, **same)
 	except ValueError as e:  # e.g. an image given as a collection, a unit that is not UDUNITS

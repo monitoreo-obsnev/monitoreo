@@ -2738,7 +2738,7 @@
 		var legend = mo.breakClasses(cuts, unit === 'unitless' ? '' : unit, state.lang);
 		var name = fmt(t('zoneTitle'), m.name, z.index);
 		var id = start();
-		mo.zoneStats(m.image, zone, state.region, scale, state.info.crs).evaluate(guardedAsync(id, function (fc) {
+		mo.zoneStats(m.image, zone, state.region, scale, state.info.crs, e).evaluate(guardedAsync(id, function (fc) {
 			var rows = mo.zoneRows(fc.features, legend);
 			var regionNames = regionsOf(rows);
 			var chart = [[t('zoneBand')].concat(regionNames)].concat(legend.map(function (l) {
@@ -2772,7 +2772,7 @@
 		var zone = mo.classZone(zs, geom, scale);
 		var name = fmt(t('zoneClassTitle'), m.name, z.index);
 		var id = start();
-		mo.zoneStats(m.image, zone, state.region, scale, state.info.crs).evaluate(guardedAsync(id, function (fc) {
+		mo.zoneStats(m.image, zone, state.region, scale, state.info.crs, e).evaluate(guardedAsync(id, function (fc) {
 			var rows = mo.classZoneRows(fc.features, z, state.lang);
 			var regionNames = regionsOf(rows);
 			show([ui.Label(name, {fontWeight: 'bold'}),

@@ -385,6 +385,40 @@ def sen(years, values, first=None):
 	return slope, _median([y - slope * (x - first) for x, y in pts])
 
 
+def deseasonalized_years(monthly, min_months=None):
+	"""The yearly values of each region from its MONTHLY values ([{region, part (1-12), year, value, n_pixels,
+	n_images}], those of trend_table with step 'monthly'), each month weighing the same: the mean of the monthly means
+	of the years (the climatology) plus the mean of the anomalies of the months of that year with a value (each month
+	against its own mean over the years). So the months with more clear images (summer, for the LST) do not weigh
+	more, and a missing month does not move the year by its usual value. A year needs MIN_MONTHS months with a value
+	(default: half of the months that have values in any year, rounded up). [{region, part 0, year, value, n_months,
+	n_pixels (min of its months), n_images (sum)}]."""
+	out = []
+	by_region = {}
+	for r in monthly:
+		if r.get('value') is not None and math.isfinite(float(r['value'])):
+			by_region.setdefault(r['region'], []).append(r)
+	for region, rows in sorted(by_region.items()):
+		months = {}
+		for r in rows:
+			months.setdefault(r['part'], []).append(float(r['value']))
+		clim = {m: sum(v) / len(v) for m, v in months.items()}
+		base = sum(clim.values()) / len(clim)
+		need = min_months if min_months is not None else math.ceil(len(clim) / 2)
+		years = {}
+		for r in rows:
+			years.setdefault(r['year'], []).append(r)
+		for y, part in sorted(years.items()):
+			if len(part) < need:
+				continue
+			anomaly = sum(float(r['value']) - clim[r['part']] for r in part) / len(part)
+			pix = [r.get('n_pixels') for r in part if r.get('n_pixels') is not None]
+			imgs = [r.get('n_images') for r in part if r.get('n_images') is not None]
+			out.append({'region': region, 'part': 0, 'year': y, 'value': base + anomaly, 'n_months': len(part),
+			            'n_pixels': min(pix) if pix else None, 'n_images': sum(imgs) if imgs else None})
+	return out
+
+
 def trend_rows(yearly, step, first=None, min_years=MIN_YEARS, alpha=0.05, test='mk'):
 	"""Trend of each region and part of YEARLY ([{region, part, year, value}]) with the trend test TEST (TESTS):
 	[{region, part, key, label, n, tau, z, p_value, significant, slope, intercept, first_year, last_year, n_ratio,

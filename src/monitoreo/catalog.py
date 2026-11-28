@@ -609,12 +609,14 @@ EXTRA.update({
 	190: (15, dict(NIGHT_LST, ft='LST_Night_1km', f='LST_Night_1km', QA='QC_Night',
 	               product='MODIS/061/MOD11A1#night', notes={
 		'ft': 'Land surface temperature of the night of MODIS Terra (MOD11A1 v6.1, band LST_Night_1km, about 22:30 '
-		      'local time), 1 km, in °C; only the pixels of good quality (QC_Night bits 0-1 = 0). Cold air pools in '
+		      'local time), 1 km, in °C; only the pixels of good quality (QC_Night bits 0-1 = 0) and, with the snow filter (on by '
+		      'default), without snow that day in MOD10A1. Cold air pools in '
 		      'valleys and hollows at night: the night LST shows the inversions and the cold refuges.'})),
 	191: (16, dict(NIGHT_LST, ft='LST_Night_1km', f='LST_Night_1km', QA='QC_Night',
 	               product='MODIS/061/MYD11A1#night', notes={
 		'ft': 'Land surface temperature of the night of MODIS Aqua (MYD11A1 v6.1, band LST_Night_1km, about 1:30 '
-		      'local time), 1 km, in °C; only the pixels of good quality (QC_Night bits 0-1 = 0).'})),
+		      'local time), 1 km, in °C; only the pixels of good quality (QC_Night bits 0-1 = 0) and, with the snow filter (on by '
+		      'default), without snow that day in MYD10A1.'})),
 	192: (15, dict(NIGHT_LST, sensor='ECOSTRESS', col='NASA/ECOSTRESS/L2T_LSTE/V2', m=70, tr='irregular',
 	               dr='2018/07/09-now', ds='7/9/18', ft='LST', f='LST (K) - 273.15', QA='cloud, water', scale=1,
 	               offset=-273.15, hours=[22, 4], large_areas=False, pg='#3f007d',
