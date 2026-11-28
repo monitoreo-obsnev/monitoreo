@@ -96,7 +96,7 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
-### Unreleased
+### [v0.3.84](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.84) · 2026-11-28 · package 0.3.94
 
 - **Python package, R package, Command line, MCP server, Assistant**: Official perimeters as study areas, downloaded once and cited as their sources ask: `{"ems": "EMSR375"}` (the burnt or flooded area of an activation of Copernicus EMS, from its grading or its last delineation; `mo_ems()`), `{"effis_id": 17545}` (a burnt area of EFFIS; `mo_effis()`), `{"wfs": URL, "layer": ...}` (a layer of a WFS, e.g. the burnt areas of ICNF; `mo_wfs()`) and `{"url": URL}` (a vector file on the web; `mo_url()`).
 - **Python package, R package, Command line, MCP server, Assistant**: The burnt areas of EFFIS (2000 to today) in a region or a country, the largest first (`find_burnt_areas`; `monitoreo burnt`; `mo_burnt_areas()`), with the region of the perimeter of each.
